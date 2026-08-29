@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PhotoTagDao {
-
     @Query("SELECT tagId FROM photo_tag WHERE mediaId = :mediaId")
     fun observeTagIdsByMedia(mediaId: Long): Flow<List<Long>>
 

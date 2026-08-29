@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SearchHistoryDao {
-
     @Query("SELECT * FROM search_history ORDER BY timestamp DESC LIMIT 20")
     fun observeRecent(): Flow<List<SearchHistoryEntity>>
 

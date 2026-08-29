@@ -25,7 +25,8 @@ fun PlaceholderScreen(route: String) {
         color = MaterialTheme.colorScheme.background
     ) {
         Column(
-            modifier = Modifier
+            modifier =
+            Modifier
                 .fillMaxSize()
                 .padding(24.dp),
             verticalArrangement = Arrangement.Center,
@@ -45,6 +46,7 @@ fun PlaceholderScreen(route: String) {
 
 @Preview
 @Composable
+@Suppress("UnusedPrivateMember") // @Preview 入口在 IDE Preview 面板调用,detekt 静态分析看不到
 private fun PlaceholderScreenPreview() {
     PixcaseTheme {
         PlaceholderScreen("timeline")

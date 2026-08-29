@@ -1,0 +1,42 @@
+# 项目级 detekt 配置,继承默认规则集(buildUponDefaultConfig = true)。
+# 调整项:
+# - FunctionNaming:排除 @Composable 注解的函数,Compose 官方用 PascalCase
+# - ForbiddenComment:允许 TODO / FIXME / NOTE 等开发注释关键字
+
+build:
+  maxIssues: 0           # 阶段 0 要求 0 issue(全警告视为错误)
+  excludeCorrectable: false
+  weights:
+    complexity: 2
+    LongParameterList: 1
+    style: 1
+    comments: 0
+
+config:
+  validation: true        # 配置有效性检查
+  warningsAsErrors: false
+
+processors:
+  active: true
+
+console-reports:
+  active: true
+
+output-reports:
+  active: true
+
+naming:
+  FunctionNaming:
+    active: true
+    functionPattern: '[a-z][a-zA-Z0-9]*'
+    # 排除 @Composable 注解的函数:Compose 官方惯例 PascalCase
+    # (如 PixcaseTheme / PlaceholderScreen / TimelinePlaceholder)
+    ignoreAnnotated: ['Composable']
+
+style:
+  ForbiddenComment:
+    active: false  # detekt 1.23 默认禁止 TODO/FIXME/STOPSHIP;阶段 0-1 累积技术债时常出现,
+                   # 项目级禁用该规则,后续阶段收敛技术债后再单独启用
+
+# 项目级 excludes(本项目暂不配置,需要时按 detekt pathFilter 语法添加)
+# excludes: '**/generated/**,**/build/**'

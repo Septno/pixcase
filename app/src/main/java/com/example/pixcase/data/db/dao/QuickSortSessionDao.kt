@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface QuickSortSessionDao {
-
     @Query("SELECT * FROM quick_sort_session WHERE albumId = :albumId")
     fun observeByAlbum(albumId: Long): Flow<QuickSortSessionEntity?>
 

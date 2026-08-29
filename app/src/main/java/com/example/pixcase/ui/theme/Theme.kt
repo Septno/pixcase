@@ -10,40 +10,42 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
-private val LightColorScheme = lightColorScheme(
-    primary = PixcasePrimary,
-    onPrimary = PixcaseOnPrimary,
-    primaryContainer = PixcasePrimaryContainer,
-    onPrimaryContainer = PixcaseOnPrimaryContainer,
-    secondary = PixcaseSecondary,
-    onSecondary = PixcaseOnSecondary,
-    secondaryContainer = PixcaseSecondaryContainer,
-    onSecondaryContainer = PixcaseOnSecondaryContainer,
-    tertiary = PixcaseTertiary,
-    onTertiary = PixcaseOnTertiary,
-    tertiaryContainer = PixcaseTertiaryContainer,
-    onTertiaryContainer = PixcaseOnTertiaryContainer,
-    error = PixcaseError,
-    onError = PixcaseOnError,
-    errorContainer = PixcaseErrorContainer,
-    onErrorContainer = PixcaseOnErrorContainer,
-    background = PixcaseBackground,
-    onBackground = PixcaseOnBackground,
-    surface = PixcaseSurface,
-    onSurface = PixcaseOnSurface,
-    surfaceVariant = PixcaseSurfaceVariant,
-    onSurfaceVariant = PixcaseOnSurfaceVariant,
-    outline = PixcaseOutline
-)
+private val LightColorScheme =
+    lightColorScheme(
+        primary = PixcasePrimary,
+        onPrimary = PixcaseOnPrimary,
+        primaryContainer = PixcasePrimaryContainer,
+        onPrimaryContainer = PixcaseOnPrimaryContainer,
+        secondary = PixcaseSecondary,
+        onSecondary = PixcaseOnSecondary,
+        secondaryContainer = PixcaseSecondaryContainer,
+        onSecondaryContainer = PixcaseOnSecondaryContainer,
+        tertiary = PixcaseTertiary,
+        onTertiary = PixcaseOnTertiary,
+        tertiaryContainer = PixcaseTertiaryContainer,
+        onTertiaryContainer = PixcaseOnTertiaryContainer,
+        error = PixcaseError,
+        onError = PixcaseOnError,
+        errorContainer = PixcaseErrorContainer,
+        onErrorContainer = PixcaseOnErrorContainer,
+        background = PixcaseBackground,
+        onBackground = PixcaseOnBackground,
+        surface = PixcaseSurface,
+        onSurface = PixcaseOnSurface,
+        surfaceVariant = PixcaseSurfaceVariant,
+        onSurfaceVariant = PixcaseOnSurfaceVariant,
+        outline = PixcaseOutline
+    )
 
-private val DarkColorScheme = darkColorScheme(
-    primary = PixcaseDarkPrimary,
-    onPrimary = PixcaseDarkOnPrimary,
-    background = PixcaseDarkBackground,
-    onBackground = PixcaseDarkOnBackground,
-    surface = PixcaseDarkSurface,
-    onSurface = PixcaseDarkOnSurface
-)
+private val DarkColorScheme =
+    darkColorScheme(
+        primary = PixcaseDarkPrimary,
+        onPrimary = PixcaseDarkOnPrimary,
+        background = PixcaseDarkBackground,
+        onBackground = PixcaseDarkOnBackground,
+        surface = PixcaseDarkSurface,
+        onSurface = PixcaseDarkOnSurface
+    )
 
 /**
  * 全局 Material 3 主题。
@@ -57,14 +59,15 @@ fun PixcaseTheme(
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    val colorScheme =
+        when {
+            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                val context = LocalContext.current
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            }
+            darkTheme -> DarkColorScheme
+            else -> LightColorScheme
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
 
     MaterialTheme(
         colorScheme = colorScheme,

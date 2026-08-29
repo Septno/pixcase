@@ -33,6 +33,7 @@ import com.example.pixcase.data.db.entity.TagEntity
  * 阶段 0:所有表占位建立,迁移策略 (`Migration_x_y`) 在每次 schema 变更时按计划 § 2.3 补充。
  * 严禁 `fallbackToDestructiveMigration()` ——会清空用户元数据。
  */
+@Suppress("TooManyFunctions") // 12 个 dao 访问器是必要的(对应 12 张 Entity 表),后续按 Repository 维度拆分 Module 时再考虑下沉
 @Database(
     entities = [
         AlbumEntity::class,
@@ -53,16 +54,27 @@ import com.example.pixcase.data.db.entity.TagEntity
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun albumDao(): AlbumDao
+
     abstract fun albumPhotoDao(): AlbumPhotoDao
+
     abstract fun tagDao(): TagDao
+
     abstract fun photoTagDao(): PhotoTagDao
+
     abstract fun favoriteDao(): FavoriteDao
+
     abstract fun hiddenDao(): HiddenDao
+
     abstract fun searchHistoryDao(): SearchHistoryDao
+
     abstract fun quickSortSessionDao(): QuickSortSessionDao
+
     abstract fun quickSortDecisionDao(): QuickSortDecisionDao
+
     abstract fun imageCategoryDao(): ImageCategoryDao
+
     abstract fun imageCategoryCrossDao(): ImageCategoryCrossDao
+
     abstract fun imageMarkDao(): ImageMarkDao
 
     companion object {

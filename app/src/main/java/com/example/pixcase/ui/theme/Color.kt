@@ -1,3 +1,8 @@
+@file:Suppress("MagicNumber")
+
+// Material Design 3 标准色 hex 字面量,业务代码里就是常量;
+// detekt MagicNumber 规则对 theme 文件不适用,故在文件级别抑制。
+
 package com.example.pixcase.ui.theme
 
 import androidx.compose.ui.graphics.Color

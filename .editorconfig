@@ -1,0 +1,24 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{kt,kts}]
+# 整体代码风格:Android Studio 默认(ktlint 推荐)
+ktlint_code_style = android_studio
+# 禁用 function-naming 检查:Compose 官方惯例 @Composable 函数 PascalCase
+# (如 PixcaseTheme / PlaceholderScreen),ktlint 默认要求 camelCase 会误报
+ktlint_standard_function-naming = disabled
+# 允许 max-line-length 120(默认 100,Android Studio 默认 120 更舒适)
+max_line_length = 120
+
+[*.md]
+trim_trailing_whitespace = false
+
+# 构建产物不参与编辑配置
+[build/**]
+indent_style = ignore

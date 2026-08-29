@@ -8,7 +8,6 @@ import com.example.pixcase.data.db.entity.ImageCategoryCrossRef
 
 @Dao
 interface ImageCategoryCrossDao {
-
     @Query("SELECT categoryId FROM image_category_cross WHERE mediaId = :mediaId")
     suspend fun categoryIdsByMedia(mediaId: Long): List<Long>
 

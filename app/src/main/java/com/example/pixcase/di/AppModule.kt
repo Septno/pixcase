@@ -19,12 +19,10 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.DATABASE_NAME)
             // TODO: 阶段 0 暂不写 Migration;阶段 1 起每个 schema 变更必须配 Migration_x_y
-            // .addMigrations(MIGRATION_1_2, ...)
             .build()
 }

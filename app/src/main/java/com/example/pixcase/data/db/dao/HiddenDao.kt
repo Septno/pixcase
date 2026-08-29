@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface HiddenDao {
-
     @Query("SELECT mediaId FROM hidden_photo ORDER BY addedAt DESC")
     fun observeAllIds(): Flow<List<Long>>
 

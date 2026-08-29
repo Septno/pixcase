@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface FavoriteDao {
-
     @Query("SELECT mediaId FROM favorite ORDER BY addedAt DESC")
     fun observeAllIds(): Flow<List<Long>>
 

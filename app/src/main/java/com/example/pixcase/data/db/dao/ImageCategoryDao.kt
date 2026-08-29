@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ImageCategoryDao {
-
     @Query("SELECT * FROM image_category ORDER BY usageCount DESC, updatedAt DESC")
     fun observeAll(): Flow<List<ImageCategoryEntity>>
 

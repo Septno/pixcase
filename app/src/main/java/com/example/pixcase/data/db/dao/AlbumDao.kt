@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AlbumDao {
-
     @Query("SELECT * FROM album ORDER BY updatedAt DESC")
     fun observeAll(): Flow<List<AlbumEntity>>
 

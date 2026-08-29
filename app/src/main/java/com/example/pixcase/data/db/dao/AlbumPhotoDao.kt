@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AlbumPhotoDao {
-
     @Query("SELECT mediaId FROM album_photo WHERE albumId = :albumId ORDER BY addedAt DESC")
     fun observeMediaIdsByAlbum(albumId: Long): Flow<List<Long>>
 

@@ -43,13 +43,14 @@ private data class BottomNavItem(
     val icon: ImageVector
 )
 
-private val bottomNavItems = listOf(
-    BottomNavItem(Routes.TIMELINE, R.string.nav_timeline, Icons.Outlined.Image),
-    BottomNavItem(Routes.ALBUMS, R.string.nav_albums, Icons.Outlined.PhotoAlbum),
-    BottomNavItem(Routes.SEARCH, R.string.nav_search, Icons.Outlined.Search),
-    BottomNavItem(Routes.FAVORITES, R.string.nav_favorites, Icons.Outlined.Favorite),
-    BottomNavItem(Routes.SETTINGS, R.string.nav_settings, Icons.Outlined.Settings)
-)
+private val bottomNavItems =
+    listOf(
+        BottomNavItem(Routes.TIMELINE, R.string.nav_timeline, Icons.Outlined.Image),
+        BottomNavItem(Routes.ALBUMS, R.string.nav_albums, Icons.Outlined.PhotoAlbum),
+        BottomNavItem(Routes.SEARCH, R.string.nav_search, Icons.Outlined.Search),
+        BottomNavItem(Routes.FAVORITES, R.string.nav_favorites, Icons.Outlined.Favorite),
+        BottomNavItem(Routes.SETTINGS, R.string.nav_settings, Icons.Outlined.Settings)
+    )
 
 /**
  * 主导航图。5 个顶级路由 + 底部 NavigationBar。

@@ -164,8 +164,15 @@ dependencies {
 }
 
 // 让 ktlint 不检查 build / generated 目录
+//
+// 规则调整说明:
+// - disabledRules = ["standard:function-naming"]:Compose 官方惯例
+//   @Composable 函数用 PascalCase(如 PixcaseTheme / PlaceholderScreen),
+//   ktlint 默认要求 camelCase 会误报,ktlint 不支持 ignoreAnnotated,
+//   故直接在 ktlint {} block 禁用该规则(detekt 在外部 yml 里用 ignoreAnnotated)。
 ktlint {
     android = true
+    disabledRules.add("standard:function-naming")
     filter {
         exclude("**/build/**")
         exclude("**/generated/**")
@@ -173,9 +180,9 @@ ktlint {
     }
 }
 
-// detekt:不指定外部 config,使用默认规则集 + buildUponDefaultConfig
-// (项目级自定义规则后续按需写到 $rootDir/config/detekt/detekt.yml 再打开 config.setFrom)
+// detekt:外部 yml 在 $rootDir/config/detekt/detekt.yml,继承默认 + 项目级调整
 detekt {
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
     buildUponDefaultConfig = true
     autoCorrect = false
     allRules = false
