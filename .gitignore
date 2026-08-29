@@ -54,5 +54,8 @@ coverage/
 .kotlin/
 .cxx/
 
-# Gradle wrapper jar 不在 git 里(由 Android Studio 首次 Sync 自动生成)
-# 但 gradle-wrapper.properties 要入库
+# Gradle wrapper 文件(`gradle-wrapper.jar` / `gradlew` / `gradlew.bat`)
+# 由 Android Studio 首次 Sync 自动生成,但**必须入库**——
+# 否则 CI 跑 wrapper-validation-action 会失败("Expected to find at
+# least 1 Gradle Wrapper JARs but got only 0"),后续 clone 仓库的人也
+# 跑不了 ./gradlew。`gradle-wrapper.properties` 也要入库。
