@@ -1,7 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Lint baseline:首次跑 ./gradlew lintDebug 时若报错,
-  用 `./gradlew updateLintBaseline` 自动填充本文件。
-  阶段 0 暂未跑过 lint,本文件为空表示"目前没有已知 lint 警告要豁免"。
+  Lint baseline:手工豁免以下 lint 检查。
+
+  SelectedPhotoAccess (Android 14+ 部分照片访问权限):
+  阶段 0 不实现 Selected Photos Access UI(阶段 1+ 加)。
+  现在只用 READ_MEDIA_IMAGES / READ_MEDIA_VIDEO 全量访问。
+
+  GradleDependency (KSP 新版 2.2.21-2.0.5):
+  2.2.21-2.0.5 是为 Kotlin 2.2.21 设计的,与本项目 Kotlin 2.0.21 不兼容
+  (NoSuchMethodError: KotlinJvmCompilerOptions.getJvmDefault()),
+  故固定使用 Kotlin 2.0.21 对应的 KSP 1.x 版本 2.0.21-1.0.28。
+
+  ObsoleteSdkInt (mipmap-anydpi-v26):
+  lint 误报 —— adaptive icon 限定 -v26 是必要的(标记只在 API 26+ 使用),
+  改名 mipmap-anydpi 后 AAPT 反而找不到资源。
 -->
-<issues format="6" by="lint baseline (manually authored)" />
+<issues format="6" by="lint baseline (manually authored)" >
+    <issue
+        id="SelectedPhotoAccess"
+        message="Your app is currently not handling Selected Photos Access introduced in Android 14+">
+        <location
+            file="src/main/AndroidManifest.xml" />
+    </issue>
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.google.devtools.ksp than 2.0.21-1.0.28 is available: 2.2.21-2.0.5">
+        <location
+            file="../gradle/libs.versions.toml" />
+    </issue>
+    <issue
+        id="ObsoleteSdkInt"
+        message="This folder configuration (v26) is unnecessary">
+        <location
+            file="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+</issues>

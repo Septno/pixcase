@@ -2,6 +2,9 @@
 <!--
   本应用为完全本地的相册管理工具,**不申请 INTERNET 权限**(计划 § 2.10 隐私承诺)。
   所有用户照片仅在本机处理,元数据写入 Room,删除/移动通过 MediaStore API。
+
+  WorkManager 配置走 PixcaseApp 的 Configuration.Provider(由 Hilt 注入),
+  走 on-demand 初始化,所以**不需要** androidx.startup.InitializationProvider。
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -35,6 +38,22 @@
         android:supportsRtl="true"
         android:enableOnBackInvokedCallback="true"
         tools:targetApi="34">
+
+        <!--
+          WorkManager on-demand 初始化:由 PixcaseApp.Configuration.Provider 提供配置,
+          显式移除默认的 WorkManagerInitializer(避免 androidx.startup 自动初始化)。
+          lint "RemoveWorkManagerInitializer" 要求这个声明存在以证明有意禁用。
+        -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
 
         <meta-data
             android:name="android.max_aspect"

@@ -10,11 +10,7 @@
     <string name="nav_favorites">收藏</string>
     <string name="nav_settings">设置</string>
 
-    <!-- 关于页面 -->
-    <string name="about_version">版本 %1$s (build %2$d)</string>
-    <string name="about_copyright">© 2026 Septno。遵循 Apache License 2.0 协议开源。</string>
-    <string name="about_oss_notice">本产品包含由 Apache 软件基金会开发的软件。</string>
-    <string name="about_check_update">检查更新</string>
-    <string name="about_open_source">第三方开源许可</string>
-    <string name="about_privacy">隐私政策</string>
+    <!--
+      关于页面(about_*)字符串,阶段 1+ 实现 Settings → About 时再加。
+    -->
 </resources>
