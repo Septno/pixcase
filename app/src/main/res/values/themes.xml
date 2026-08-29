@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Splash 启动主题:使用 SplashScreen API(Android 12+ 原生支持,旧版本由 androidx.core 兼容)。
+      postSplashScreenTheme 指向 Compose 真正运行的主题,内容仅决定 status bar 颜色等。
+    -->
+    <style name="Theme.Pixcase.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Pixcase</item>
+    </style>
+
+    <!--
+      Compose 运行时主题:NoActionBar,因为 UI 全部用 Material 3 组件自己画,
+      系统 ActionBar 反而会冲突。Edge-to-Edge 由 Activity.enableEdgeToEdge() 处理。
+    -->
+    <style name="Theme.Pixcase" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

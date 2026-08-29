@@ -1,0 +1,28 @@
+name: Feature Request
+description: 提出功能建议
+labels: ["enhancement"]
+body:
+  - type: textarea
+    attributes:
+      label: 功能描述
+      placeholder: 描述您想要的功能
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 解决的问题
+      placeholder: 这个功能能帮您解决什么痛点?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 替代方案
+      placeholder: 您目前用什么办法绕过这个问题?
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: 额外上下文
+      placeholder: 截图、参考 App、其他
+    validations:
+      required: false

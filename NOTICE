@@ -1,0 +1,8 @@
+图匣 Pixcase
+Copyright 2026 Septno
+
+本产品包含由 Apache 软件基金会(http://www.apache.org/)开发的软件。
+
+第三方依赖的归属声明会由 Gradle 插件
+`com.mikepenz.aboutlibraries.plugin` 在 About 页面自动生成,
+不需要手动维护本文件。

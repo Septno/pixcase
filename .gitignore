@@ -1,0 +1,58 @@
+# Gradle / 构建产物
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Android Studio
+local.properties
+**/local.properties
+keystore.properties
+
+# 日志 / 系统
+*.log
+*.hprof
+.stackdump/
+*.stackdump
+bash.exe.stackdump
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# 输出 APK / AAB
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# 生成文件
+**/generated/
+**/.cxx/
+
+# 密钥 / 签名(永远不入库)
+*.jks
+*.keystore
+google-services.json
+
+# 测试覆盖率
+**/jacoco/
+coverage/
+
+# 缓存
+.kotlin/
+.cxx/
+
+# Gradle wrapper jar 不在 git 里(由 Android Studio 首次 Sync 自动生成)
+# 但 gradle-wrapper.properties 要入库

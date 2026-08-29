@@ -1,0 +1,51 @@
+name: Bug Report
+description: 报告 Bug
+labels: ["bug"]
+body:
+  - type: textarea
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开时间线
+        2. 点击 ...
+        3. 看到 ...
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 期望行为
+      placeholder: 描述您期望发生什么
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 实际行为
+      placeholder: 描述实际发生了什么(附截图)
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: 设备型号
+      placeholder: Pixel 7 / Xiaomi 13 ...
+    validations:
+      required: false
+  - type: input
+    attributes:
+      label: Android 版本
+      placeholder: Android 15
+    validations:
+      required: false
+  - type: input
+    attributes:
+      label: Pixcase 版本
+      placeholder: v0.1.0
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: 日志
+      placeholder: |
+        从 logcat 过滤 Pixcase/ 复制粘贴。
+        命令:adb logcat -s Pixcase:V
+    validations:
+      required: false

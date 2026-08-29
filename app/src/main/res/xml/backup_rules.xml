@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  allowBackup=false 时本文件不会被触发,保留仅为占位。
+  启用备份时,可在此声明 exclude 规则排除敏感数据。
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="pixcase_prefs.xml" />
+    <exclude domain="database" path="pixcase.db" />
+</full-backup-content>

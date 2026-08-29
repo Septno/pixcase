@@ -1,0 +1,10 @@
+name: Question
+description: 一般问题
+labels: ["question"]
+body:
+  - type: textarea
+    attributes:
+      label: 问题
+      placeholder: 您想了解什么?
+    validations:
+      required: true

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (API 31+) 替换 fullBackupContent,分别控制 cloud-backup 与 device-transfer。
+  本项目 allowBackup=false 不会触发,保留占位。
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="pixcase_prefs.xml" />
+        <exclude domain="database" path="pixcase.db" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="pixcase_prefs.xml" />
+        <exclude domain="database" path="pixcase.db" />
+    </device-transfer>
+</data-extraction-rules>
