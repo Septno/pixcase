@@ -16,22 +16,4 @@
   改名 mipmap-anydpi 后 AAPT 反而找不到资源。
 -->
 <issues format="6" by="lint baseline (manually authored)" >
-    <issue
-        id="SelectedPhotoAccess"
-        message="Your app is currently not handling Selected Photos Access introduced in Android 14+">
-        <location
-            file="src/main/AndroidManifest.xml" />
-    </issue>
-    <issue
-        id="GradleDependency"
-        message="A newer version of com.google.devtools.ksp than 2.0.21-1.0.28 is available: 2.2.21-2.0.5">
-        <location
-            file="../gradle/libs.versions.toml" />
-    </issue>
-    <issue
-        id="ObsoleteSdkInt"
-        message="This folder configuration (v26) is unnecessary">
-        <location
-            file="src/main/res/mipmap-anydpi-v26" />
-    </issue>
 </issues>
