@@ -87,12 +87,15 @@ android {
         // - GradleDependency:KSP 2.2.21-2.0.5 与 Kotlin 2.0.21 不兼容,固定 2.0.21-1.0.28
         // - ObsoleteSdkInt:lint 误报 mipmap-anydpi-v26,实际是 adaptive icon 必要的版本限定
         // - RemoveWorkManagerInitializer:on-demand 初始化已在 manifest 处理
+        // - AndroidGradlePluginVersion:计划文档工具链约定 AGP 8.7+,lint 提示"有更新版本
+        //   可用"是软警告,与项目版本范围策略冲突;warningsAsErrors=true 会把它升 error
         disable += setOf(
             "MissingTranslation",
             "SelectedPhotoAccess",
             "GradleDependency",
             "ObsoleteSdkInt",
-            "RemoveWorkManagerInitializer"
+            "RemoveWorkManagerInitializer",
+            "AndroidGradlePluginVersion"
         )
     }
 }
