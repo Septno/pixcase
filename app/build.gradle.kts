@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
-    alias(libs.plugins.aboutlibraries)
     alias(libs.plugins.ktlint)
     alias(libs.plugins.detekt)
 }
@@ -85,11 +84,13 @@ android {
     }
 }
 
-// 依赖版本警告:引入 alpha/beta 版本时报 warning,避免意外
+// 依赖版本警告:引入 alpha/beta 版本时报 warning,避免意外。
+// requested.version 是 String?,所以用 ?. 安全调用,避免 nullable receiver 编译错误。
 configurations.all {
     resolutionStrategy.eachDependency {
-        if (requested.version.contains("alpha") || requested.version.contains("beta")) {
-            logger.warn("⚠️ 引入非稳定版依赖: ${requested.group}:${requested.name}:${requested.version}")
+        val v = requested.version
+        if (v != null && (v.contains("alpha") || v.contains("beta"))) {
+            logger.warn("⚠️ 引入非稳定版依赖: ${requested.group}:${requested.name}:$v")
         }
     }
 }
@@ -145,9 +146,6 @@ dependencies {
     implementation(libs.mlkit.face.detection)
     implementation(libs.mlkit.image.labeling)
 
-    // aboutlibraries
-    implementation(libs.aboutlibraries.compose)
-
     // Desugar(让 minSdk 26 也能用 Java 8+ API)
     coreLibraryDesugaring(libs.android.desugar)
 
@@ -181,9 +179,4 @@ detekt {
     buildUponDefaultConfig = true
     autoCorrect = false
     allRules = false
-}
-
-// aboutlibraries:从 libs.versions.toml 读依赖生成 libs.yml,默认输出到 assets/aboutlibraries/
-aboutLibraries {
-    // libraryConfigFile 默认指向 $rootDir/config/aboutlibraries/libs.yml,留空用插件默认
 }
