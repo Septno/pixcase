@@ -100,6 +100,12 @@ android {
     }
 }
 
+// Room schema JSON 落盘到 app/schemas/,为 § 二.3 MigrationTestHelper 提供 schema 比对基线;
+// 不配置则 KSP 默认把 schema 落到 build/,build 不入仓,迁移测试拿不到基线。
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 // 依赖版本警告:引入 alpha/beta 版本时报 warning,避免意外。
 // requested.version 是 String?,所以用 ?. 安全调用,避免 nullable receiver 编译错误。
 configurations.all {
