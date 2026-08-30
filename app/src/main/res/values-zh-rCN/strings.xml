@@ -10,6 +10,13 @@
     <string name="nav_favorites">收藏</string>
     <string name="nav_settings">设置</string>
 
+    <!-- 权限引导门(1.1) -->
+    <string name="permission_title">照片访问权限</string>
+    <string name="permission_reason">图匣需要读取你的照片来在时间线展示。所有处理都在本地完成。</string>
+    <string name="permission_grant_button">允许</string>
+    <string name="permission_open_settings">打开设置</string>
+    <string name="permission_permanently_denied_reason">访问被拒绝。点击下方在系统设置中开启。</string>
+
     <!--
       关于页面(about_*)字符串,阶段 1+ 实现 Settings → About 时再加。
     -->

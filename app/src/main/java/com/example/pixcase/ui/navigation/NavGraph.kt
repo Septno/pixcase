@@ -26,6 +26,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.pixcase.R
 import com.example.pixcase.ui.common.PlaceholderScreen
+import com.example.pixcase.ui.feature.timeline.TimelineRoute
 
 /** 顶级路由(计划 § 阶段 0 五个空骨架路由)。 */
 private object Routes {
@@ -66,7 +67,7 @@ fun PixcaseNavGraph(navController: NavHostController) {
             startDestination = Routes.TIMELINE,
             modifier = Modifier.padding(padding)
         ) {
-            composable(Routes.TIMELINE) { TimelinePlaceholder() }
+            composable(Routes.TIMELINE) { TimelineRoute() }
             composable(Routes.ALBUMS) { AlbumsPlaceholder() }
             composable(Routes.SEARCH) { SearchPlaceholder() }
             composable(Routes.FAVORITES) { FavoritesPlaceholder() }
@@ -100,11 +101,6 @@ private fun PixcaseBottomBar(navController: NavHostController) {
 }
 
 // 各顶级路由的占位界面,后续阶段替换为真实屏幕。
-@Composable
-private fun TimelinePlaceholder() {
-    PlaceholderScreen(Routes.TIMELINE)
-}
-
 @Composable
 private fun AlbumsPlaceholder() {
     PlaceholderScreen(Routes.ALBUMS)

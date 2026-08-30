@@ -7,6 +7,9 @@ import android.net.Uri
  *
  * 字段较多是 MediaStore + EXIF + Room 元数据的并集;
  * 列表渲染时只用 id + uri + thumb 字段,其余字段在进入查看器时按需补齐。
+ *
+ * width / height / sizeBytes 在列表投影(5 列,见 §3.2)中不消费,默认 0;
+ * 进入查看器时按 mediaId 重新查询补齐。
  */
 data class MediaPhoto(
     val id: Long,
@@ -14,15 +17,15 @@ data class MediaPhoto(
     val displayName: String,
     val mimeType: String,
     val dateAddedSec: Long,
-    val dateTakenMs: Long?,
-    val width: Int,
-    val height: Int,
-    val sizeBytes: Long,
-    val durationMs: Long?,
-    val bucketName: String?,
-    val relativePath: String?,
-    val lat: Double?,
-    val lon: Double?,
+    val dateTakenMs: Long? = null,
+    val width: Int = 0,
+    val height: Int = 0,
+    val sizeBytes: Long = 0L,
+    val durationMs: Long? = null,
+    val bucketName: String? = null,
+    val relativePath: String? = null,
+    val lat: Double? = null,
+    val lon: Double? = null,
     // 阶段 0 占位,后续阶段由 Repository 填充
     val isFavorite: Boolean = false,
     val isHidden: Boolean = false,

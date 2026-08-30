@@ -10,6 +10,13 @@
     <string name="nav_favorites">Favorites</string>
     <string name="nav_settings">Settings</string>
 
+    <!-- 权限引导门(1.1) -->
+    <string name="permission_title">Photo access</string>
+    <string name="permission_reason">Pixcase needs to read your photos to show them in the timeline. All processing is on-device.</string>
+    <string name="permission_grant_button">Allow</string>
+    <string name="permission_open_settings">Open settings</string>
+    <string name="permission_permanently_denied_reason">Access was denied. Tap below to enable in system settings.</string>
+
     <!--
       About screen 字符串(about_version / about_copyright / about_oss_notice /
       about_check_update / about_open_source / about_privacy)放到阶段 1+ 实现
