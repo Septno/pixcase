@@ -36,7 +36,7 @@ class MediaPhotoCursorMapperTest {
     private fun cursorWith(
         id: Long = 1L,
         displayName: String? = "IMG_001.jpg",
-        dateAddedSec: Long = 1_700_000_000L,
+        dateTakenMs: Long? = DATE_TAKEN_MS,
         bucketName: String? = "Camera",
         mimeType: String? = "image/jpeg"
     ): Cursor {
@@ -48,9 +48,13 @@ class MediaPhotoCursorMapperTest {
         every { cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED) } returns 2
         every { cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME) } returns 3
         every { cursor.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE) } returns 4
+        every { cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_TAKEN) } returns 5
 
         every { cursor.getLong(0) } returns id
-        every { cursor.getLong(2) } returns dateAddedSec
+        every { cursor.getLong(2) } returns DATE_ADDED_SEC
+        // DATE_TAKEN 可空:列值为 NULL 时必须映射成 null,而不是 0
+        every { cursor.isNull(5) } answers { dateTakenMs == null }
+        every { cursor.getLong(5) } answers { dateTakenMs ?: 0L }
 
         every { cursor.isNull(1) } answers { displayName == null }
         every { cursor.getString(1) } answers { displayName ?: "" }
@@ -62,7 +66,7 @@ class MediaPhotoCursorMapperTest {
     }
 
     @Test
-    fun `maps 5-column cursor to MediaPhoto`() {
+    fun `maps projected cursor to MediaPhoto`() {
         val cursor = cursorWith(id = 42L, displayName = "IMG_0042.jpg", bucketName = "Camera")
 
         val photo = cursor.toMediaPhotoOrNull(contentUri)
@@ -73,13 +77,20 @@ class MediaPhotoCursorMapperTest {
         assertEquals(ContentUris.withAppendedId(contentUri, 42L), photo.uri)
         assertEquals("IMG_0042.jpg", photo.displayName)
         assertEquals("image/jpeg", photo.mimeType)
-        assertEquals(1_700_000_000L, photo.dateAddedSec)
+        assertEquals(DATE_ADDED_SEC, photo.dateAddedSec)
+        assertEquals(DATE_TAKEN_MS, photo.dateTakenMs)
         assertEquals("Camera", photo.bucketName)
         // 投影列未包含的字段走 MediaPhoto model 默认值
         assertEquals(0, photo.width)
         assertEquals(0, photo.height)
         assertEquals(0L, photo.sizeBytes)
-        assertNull(photo.dateTakenMs)
+    }
+
+    @Test
+    fun `null DATE_TAKEN maps to null dateTakenMs`() {
+        val cursor = cursorWith(dateTakenMs = null)
+
+        assertNull(cursor.toMediaPhotoOrNull(contentUri)!!.dateTakenMs)
     }
 
     @Test
@@ -114,5 +125,10 @@ class MediaPhotoCursorMapperTest {
         val photo = cursor.toMediaPhotoOrNull(contentUri)
 
         assertNull(photo!!.bucketName)
+    }
+
+    private companion object {
+        const val DATE_ADDED_SEC = 1_700_000_000L
+        const val DATE_TAKEN_MS = 1_699_000_000_000L
     }
 }

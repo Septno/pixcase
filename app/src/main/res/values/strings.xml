@@ -17,6 +17,10 @@
     <string name="permission_open_settings">Open settings</string>
     <string name="permission_permanently_denied_reason">Access was denied. Tap below to enable in system settings.</string>
 
+    <!-- 时间线日期表头 -->
+    <string name="date_today">Today</string>
+    <string name="date_yesterday">Yesterday</string>
+
     <!--
       About screen 字符串(about_version / about_copyright / about_oss_notice /
       about_check_update / about_open_source / about_privacy)放到阶段 1+ 实现

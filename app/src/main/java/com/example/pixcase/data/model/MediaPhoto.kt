@@ -34,6 +34,20 @@ data class MediaPhoto(
     val marks: List<String> = emptyList()
 )
 
+private const val MILLIS_PER_SECOND = 1_000L
+
+/**
+ * 时间线排序与分组共用的时间基准(秒):拍摄时间优先,缺失或非正时回退入库时间。
+ *
+ * 必须与 [com.example.pixcase.data.mediastore.MediaStoreProjection.SORT_ORDER]
+ * 的 SQL 表达式保持同一语义 —— 排序键与分组键不同源时,「最近入库的老照片」会排在
+ * 列表最前却挂旧日期表头,同一个月的表头反复出现。
+ */
+fun MediaPhoto.groupingEpochSec(): Long {
+    val takenMs = dateTakenMs
+    return if (takenMs != null && takenMs > 0L) takenMs / MILLIS_PER_SECOND else dateAddedSec
+}
+
 /** 自定义相册用的标签。 */
 data class Tag(
     val id: Long,

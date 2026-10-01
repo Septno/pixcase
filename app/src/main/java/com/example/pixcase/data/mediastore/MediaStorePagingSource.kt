@@ -3,6 +3,7 @@ package com.example.pixcase.data.mediastore
 import android.content.ContentResolver
 import android.database.Cursor
 import android.net.Uri
+import android.os.Build
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.example.pixcase.data.model.MediaPhoto
@@ -10,16 +11,18 @@ import com.example.pixcase.data.model.MediaPhoto
 /**
  * 按页偏移翻页的 PagingSource。
  *
- * MediaStore 没有原生分页 API,用 `LIMIT <loadSize> OFFSET <page*loadSize>`
- * 配合 ContentResolver.query 实现。ContentObserver 触发 invalidate() 时整体重新加载。
+ * MediaStore 没有原生分页 API,分页方式按系统版本分两路(见 [MediaStoreProjection.supportsQueryArgs]):
+ * - API 30+:ContentResolver 的 Bundle 查询参数(QUERY_ARG_LIMIT / QUERY_ARG_OFFSET);
+ * - API 26-29:把 "LIMIT n OFFSET n" 拼进 sortOrder。
+ *
+ * ContentObserver 触发 invalidate() 时整体重新加载。
  */
 internal class MediaStorePagingSource(
     private val contentResolver: ContentResolver,
     private val contentUri: Uri,
     private val projection: Array<String>,
-    private val sortOrderFactory: (loadSize: Int, offset: Int) -> String =
-        { loadSize, offset -> MediaStoreProjection.imageSortOrder(loadSize, offset) },
-    private val mapper: (Cursor, Uri) -> MediaPhoto? = { cursor, uri -> cursor.toMediaPhotoOrNull(uri) }
+    private val mapper: (Cursor, Uri) -> MediaPhoto? = { cursor, uri -> cursor.toMediaPhotoOrNull(uri) },
+    private val sdkInt: Int = Build.VERSION.SDK_INT
 ) : PagingSource<Int, MediaPhoto>() {
 
     @Suppress("TooGenericExceptionCaught") // PagingSource.load 约定:任何运行时错误都转为 LoadResult.Error
@@ -29,8 +32,7 @@ internal class MediaStorePagingSource(
         val offset = page * safeLoadSize
 
         return try {
-            val sortOrder = sortOrderFactory(safeLoadSize, offset)
-            val items = queryAndMap(sortOrder)
+            val items = queryAndMap(safeLoadSize, offset)
             LoadResult.Page(
                 data = items,
                 prevKey = (page - 1).takeIf { it >= 0 },
@@ -48,16 +50,26 @@ internal class MediaStorePagingSource(
         ?.prevKey
         ?.plus(1)
 
-    private fun queryAndMap(sortOrder: String): List<MediaPhoto> {
-        val cursor = contentResolver.query(
-            contentUri,
-            projection,
-            /* selection = */
-            null,
-            /* selectionArgs = */
-            null,
-            sortOrder
-        ) ?: return emptyList()
+    private fun queryAndMap(loadSize: Int, offset: Int): List<MediaPhoto> {
+        val cursor = if (MediaStoreProjection.supportsQueryArgs(sdkInt)) {
+            contentResolver.query(
+                contentUri,
+                projection,
+                MediaStoreProjection.modernQueryArgs(loadSize, offset),
+                /* cancellationSignal = */
+                null
+            )
+        } else {
+            contentResolver.query(
+                contentUri,
+                projection,
+                /* selection = */
+                null,
+                /* selectionArgs = */
+                null,
+                MediaStoreProjection.legacySortOrder(loadSize, offset)
+            )
+        } ?: return emptyList()
 
         return cursor.use { c ->
             buildList {

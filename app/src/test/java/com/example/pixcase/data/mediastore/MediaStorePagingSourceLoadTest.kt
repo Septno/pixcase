@@ -10,6 +10,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,6 +21,17 @@ class MediaStorePagingSourceLoadTest {
 
     private fun emptyCursor(): Cursor = mockk(relaxed = true) {
         every { moveToNext() } returns false
+    }
+
+    // JVM 单测里 Build.VERSION.SDK_INT 为 0,MediaStorePagingSource 默认走 API 30 以下的
+    // sortOrder 路径,所以下面的断言检查的是 legacySortOrder 的形态。
+    // API 30+ 的 Bundle 查询参数路径依赖 android.os.Bundle,纯 JVM 里无法构造,只能真机验证。
+    @Test
+    fun `query args path is used from API 30 up`() {
+        assertFalse(MediaStoreProjection.supportsQueryArgs(26))
+        assertFalse(MediaStoreProjection.supportsQueryArgs(29))
+        assertTrue(MediaStoreProjection.supportsQueryArgs(30))
+        assertTrue(MediaStoreProjection.supportsQueryArgs(36))
     }
 
     @Test

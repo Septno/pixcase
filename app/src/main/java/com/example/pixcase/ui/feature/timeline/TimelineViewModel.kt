@@ -8,24 +8,27 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import androidx.paging.insertSeparators
+import androidx.paging.map
 import com.example.pixcase.core.permission.PermissionUiState
 import com.example.pixcase.core.permission.requiredMediaPermissions
-import com.example.pixcase.data.model.MediaPhoto
 import com.example.pixcase.data.repository.PhotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
  * 时间线 ViewModel。
  *
  * 持有两类状态:
  * - permissionState:权限引导 UI 的状态机(Checking / Granted / NeedsRequest / PermanentlyDenied);
- * - pagerFlow:PhotoRepository.images() 在 viewModelScope 内 cachedIn,PagingData 跨配置变更复用。
+ * - timelineFlow:PhotoRepository.images() 转成 TimelineItem 并插入日期表头后在 viewModelScope 内 cachedIn。
  *
  * 权限状态机约定(1.1 简化,1.3+ 引入 Activity 上下文后细化):
  * - 初始检查(missing 列表非空)默认走 NeedsRequest;
@@ -41,7 +44,24 @@ class TimelineViewModel @Inject constructor(
     private val repository: PhotoRepository
 ) : ViewModel() {
 
-    val pagerFlow: Flow<PagingData<MediaPhoto>> = repository.images().cachedIn(viewModelScope)
+    /**
+     * 时间线数据流:MediaStore 分页 → 列表项类型统一 → 按日期插入表头。
+     *
+     * 先把每张照片 map 成 [TimelineItem.Photo] 再 insertSeparators,而不是让 MediaPhoto
+     * 直接充当列表项 —— 后者要求数据模型实现 UI 层的 sealed 接口,数据层会反向依赖 UI。
+     *
+     * 时区在每次 PagingData 发射时取一次,而不是每个相邻对都调 systemDefault()。
+     */
+    val timelineFlow: Flow<PagingData<TimelineItem>> = repository.images()
+        .map { paging ->
+            val zone = ZoneId.systemDefault()
+            paging
+                .map { TimelineItem.Photo(it) }
+                .insertSeparators<TimelineItem.Photo, TimelineItem> { before, after ->
+                    headerBetween(before?.photo, after?.photo, zone)
+                }
+        }
+        .cachedIn(viewModelScope)
 
     private val _permissionState = MutableStateFlow<PermissionUiState>(PermissionUiState.Checking)
     val permissionState: StateFlow<PermissionUiState> = _permissionState.asStateFlow()

@@ -1,11 +1,7 @@
 package com.example.pixcase.ui.feature.timeline
 
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -16,10 +12,10 @@ import com.example.pixcase.core.permission.PermissionGate
 import com.example.pixcase.core.permission.appSettingsIntent
 
 /**
- * 时间线路由(1.1 阶段最小实现,1.3 替换为 LazyVerticalGrid + sticky headers + 缩略图)。
+ * 时间线路由。
  *
- * 结构:PermissionGate 三态门 + 授权后的最小 LazyColumn(id + displayName)。
- * 视觉细节(列数 / 缩略图 / sticky date header / 空状态)留 1.3 引入。
+ * 结构:PermissionGate 三态门 + 授权后的照片墙网格([PhotoGrid])。
+ * 点击照片暂不响应 —— 全屏查看器是后续增量,这里不预留空回调。
  */
 @Composable
 fun TimelineRoute(viewModel: TimelineViewModel = hiltViewModel()) {
@@ -41,16 +37,7 @@ fun TimelineRoute(viewModel: TimelineViewModel = hiltViewModel()) {
             context.startActivity(appSettingsIntent(packageName))
         },
         contentWhenGranted = {
-            val photos = viewModel.pagerFlow.collectAsLazyPagingItems()
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(
-                    count = photos.itemCount,
-                    key = { index -> photos.peek(index)?.id ?: index }
-                ) { index ->
-                    val item = photos[index] ?: return@items
-                    Text("${item.id}: ${item.displayName}")
-                }
-            }
+            PhotoGrid(items = viewModel.timelineFlow.collectAsLazyPagingItems())
         }
     )
 }
