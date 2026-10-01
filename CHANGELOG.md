@@ -7,10 +7,19 @@
 
 ## [Unreleased]
 
+### Added
+
+- 阶段 0:工程初始化(Gradle 骨架、CI、Hilt / Room / Compose 依赖、Room Schema 占位)
+- 阶段 1.1:权限引导门 + MediaStore 数据层(Paging 3 分页、ContentObserver 失效重载、Room 收藏 / 隐藏覆盖层)
+- 阶段 1.2:时间线照片墙 —— Coil 自定义 Fetcher 走系统缩略图、三列网格、按拍摄时间分组的日期表头
+
+### Fixed
+
+- MediaStore 分页在 API 30+ 上必然失败:原先把 `LIMIT` / `OFFSET` 拼进 `sortOrder`,而 MediaProvider 会校验该字符串并抛 `IllegalArgumentException: Invalid token LIMIT`,导致时间线始终为空。改为 API 30 以上走 Bundle 查询参数(`QUERY_ARG_LIMIT` / `QUERY_ARG_OFFSET`)
+
 ### 计划中
 
-- 阶段 0:工程初始化(Gradle 骨架、CI、Hilt/Room/Compose 依赖、Room Schema 占位)
-- 阶段 1:基础浏览 MVP(时间线 + 查看器 + 缩略图)
+- 阶段 1.3:全屏查看器;下拉刷新、空状态、加载骨架屏
 - 阶段 2:图像操作(多选 + 删除 / 收藏 / 隐藏 / 分享)
 - 阶段 3:自定义相册 + 智能相册 + 标签
 - 阶段 3.5:快速整理(Tinder 式卡片)

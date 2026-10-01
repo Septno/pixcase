@@ -15,7 +15,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * MediaStore 数据源。1.1 阶段对外暴露三类入口:
+ * MediaStore 数据源。对外暴露三类入口:
  *
  * - imagesPagingSource():返回新的 MediaStorePagingSource 实例,Paging 3 会基于此翻页;
  *   同时把源注册到 [activeSources] 集合,失效时自动从集合移除;

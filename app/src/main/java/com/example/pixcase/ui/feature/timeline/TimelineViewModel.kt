@@ -30,12 +30,12 @@ import kotlinx.coroutines.flow.map
  * - permissionState:权限引导 UI 的状态机(Checking / Granted / NeedsRequest / PermanentlyDenied);
  * - timelineFlow:PhotoRepository.images() 转成 TimelineItem 并插入日期表头后在 viewModelScope 内 cachedIn。
  *
- * 权限状态机约定(1.1 简化,1.3+ 引入 Activity 上下文后细化):
+ * 权限状态机约定(简化版,后续引入 Activity 上下文后再细化):
  * - 初始检查(missing 列表非空)默认走 NeedsRequest;
  * - onRequestResult 回调后 [hasRequestedBefore] 置 true,下次 refresh 把状态推到 PermanentlyDenied
  *   (因为系统不再弹窗 → UI 引导用户去设置);
  * - Android 的 shouldShowRequestPermissionRationale 是 Activity-only API,
- *   本 ViewModel 持有 ApplicationContext 不应访问;1.3+ 在 Composable 层拿到 Activity 后
+ *   本 ViewModel 持有 ApplicationContext 不应访问;后续在 Composable 层拿到 Activity 后
  *   再做更精确的"系统是否仍允许弹窗"判定,这里用 session 级 hasRequestedBefore 兜底。
  */
 @HiltViewModel
