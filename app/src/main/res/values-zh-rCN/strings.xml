@@ -21,6 +21,10 @@
     <string name="date_today">今天</string>
     <string name="date_yesterday">昨天</string>
 
+    <!-- 全屏查看器 -->
+    <string name="viewer_back">返回</string>
+    <string name="viewer_load_failed">图片加载失败</string>
+
     <!--
       关于页面(about_*)字符串,阶段 1+ 实现 Settings → About 时再加。
     -->

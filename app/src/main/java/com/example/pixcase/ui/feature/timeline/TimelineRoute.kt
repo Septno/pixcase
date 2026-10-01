@@ -15,10 +15,9 @@ import com.example.pixcase.core.permission.appSettingsIntent
  * 时间线路由。
  *
  * 结构:PermissionGate 三态门 + 授权后的照片墙网格([PhotoGrid])。
- * 点击照片暂不响应 —— 全屏查看器是后续增量,这里不预留空回调。
  */
 @Composable
-fun TimelineRoute(viewModel: TimelineViewModel = hiltViewModel()) {
+fun TimelineRoute(onPhotoClick: (Long) -> Unit, viewModel: TimelineViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val permissionState by viewModel.permissionState.collectAsStateWithLifecycle()
     val packageName = context.packageName
@@ -37,7 +36,10 @@ fun TimelineRoute(viewModel: TimelineViewModel = hiltViewModel()) {
             context.startActivity(appSettingsIntent(packageName))
         },
         contentWhenGranted = {
-            PhotoGrid(items = viewModel.timelineFlow.collectAsLazyPagingItems())
+            PhotoGrid(
+                items = viewModel.timelineFlow.collectAsLazyPagingItems(),
+                onPhotoClick = onPhotoClick
+            )
         }
     )
 }

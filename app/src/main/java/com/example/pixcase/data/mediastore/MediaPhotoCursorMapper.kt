@@ -43,3 +43,20 @@ private fun Cursor.getLongOrNull(column: String): Long? {
     val idx = getColumnIndexOrThrow(column)
     return if (isNull(idx)) null else getLong(idx)
 }
+
+private fun Cursor.getIntOrNull(column: String): Int? {
+    val idx = getColumnIndexOrThrow(column)
+    return if (isNull(idx)) null else getInt(idx)
+}
+
+/**
+ * 查看器用的映射:在 [toMediaPhotoOrNull] 之上补 WIDTH / HEIGHT / SIZE。
+ *
+ * 这三列只存在于 [MediaStoreProjection.PHOTO_DETAIL_COLUMNS],列表投影里没有;
+ * 用同一个 cursor 行读,不额外查库。列缺失(理论上不会)时退回 model 默认值 0。
+ */
+internal fun Cursor.toMediaPhotoWithDetailsOrNull(contentUri: Uri): MediaPhoto? = toMediaPhotoOrNull(contentUri)?.copy(
+    width = getIntOrNull(MediaStore.MediaColumns.WIDTH) ?: 0,
+    height = getIntOrNull(MediaStore.MediaColumns.HEIGHT) ?: 0,
+    sizeBytes = getLongOrNull(MediaStore.MediaColumns.SIZE) ?: 0L
+)

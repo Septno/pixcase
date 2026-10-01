@@ -127,6 +127,55 @@ class MediaPhotoCursorMapperTest {
         assertNull(photo!!.bucketName)
     }
 
+    /** 查看器投影多出来的三列;在基础 cursor 之上追加 WIDTH / HEIGHT / SIZE 的 stub。 */
+    private fun detailCursor(width: Int? = 1_920, height: Int? = 1_080, sizeBytes: Long? = 2_048_000L): Cursor {
+        val cursor = cursorWith()
+        every { cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.WIDTH) } returns 6
+        every { cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.HEIGHT) } returns 7
+        every { cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE) } returns 8
+
+        every { cursor.isNull(6) } answers { width == null }
+        every { cursor.getInt(6) } answers { width ?: 0 }
+        every { cursor.isNull(7) } answers { height == null }
+        every { cursor.getInt(7) } answers { height ?: 0 }
+        every { cursor.isNull(8) } answers { sizeBytes == null }
+        every { cursor.getLong(8) } answers { sizeBytes ?: 0L }
+        return cursor
+    }
+
+    @Test
+    fun `details mapping adds width height and size`() {
+        val cursor = detailCursor(width = 1_920, height = 1_080, sizeBytes = 2_048_000L)
+
+        val photo = cursor.toMediaPhotoWithDetailsOrNull(contentUri)
+
+        assertEquals(1_920, photo!!.width)
+        assertEquals(1_080, photo.height)
+        assertEquals(2_048_000L, photo.sizeBytes)
+        // 基础列照常映射,不是只补了尺寸
+        assertEquals(1L, photo.id)
+        assertEquals("IMG_001.jpg", photo.displayName)
+    }
+
+    @Test
+    fun `missing detail columns fall back to zero`() {
+        val cursor = detailCursor(width = null, height = null, sizeBytes = null)
+
+        val photo = cursor.toMediaPhotoWithDetailsOrNull(contentUri)
+
+        assertEquals(0, photo!!.width)
+        assertEquals(0, photo.height)
+        assertEquals(0L, photo.sizeBytes)
+    }
+
+    @Test
+    fun `details mapping returns null for unmappable row`() {
+        val cursor = detailCursor()
+        every { cursor.getLong(0) } returns 0L
+
+        assertNull(cursor.toMediaPhotoWithDetailsOrNull(contentUri))
+    }
+
     private companion object {
         const val DATE_ADDED_SEC = 1_700_000_000L
         const val DATE_TAKEN_MS = 1_699_000_000_000L

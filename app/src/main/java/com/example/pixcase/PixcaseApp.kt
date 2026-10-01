@@ -11,6 +11,8 @@ import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import com.example.pixcase.data.mediastore.MediaStoreDataSource
 import com.example.pixcase.data.mediastore.MediaStoreThumbnailFetcherFactory
+import com.example.pixcase.data.mediastore.OriginalImageFetcherFactory
+import com.example.pixcase.data.mediastore.OriginalImageKeyer
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import okio.Path.Companion.toOkioPath
@@ -54,13 +56,25 @@ class PixcaseApp :
     }
 
     /**
-     * 全局 ImageLoader:注册 MediaStore 缩略图 Fetcher,让照片墙走系统缩略图而不是解码原图。
+     * 全局 ImageLoader。
      *
-     * 磁盘缓存对当前缩略图路径不生效(Fetcher 直接返回已解码的 Bitmap,不产生可缓存的数据源),
-     * 配在这里是为后续查看器加载原图准备。
+     * 两条取图路径按 model 类型分流:
+     * - 传 `android.net.Uri`(照片墙的 AsyncImage)→ 命中缩略图 Fetcher,走系统缩略图;
+     * - 传 [com.example.pixcase.data.mediastore.OriginalImage](查看器)→ 命中原图 Fetcher,
+     *   读原始字节流并按目标尺寸降采样。
+     *
+     * 两者的 URI 完全相同,靠类型区分是唯一可靠的做法。
+     *
+     * 配置的磁盘缓存目前**没有写入方**:原图返回的是流式 source,而 Coil 只把带
+     * diskCacheKey 的 FileImageSource 写盘;缩略图返回的更是已解码的 Bitmap。
+     * 两条路径都只走内存缓存。留着这份配置是为了将来给原图实现落盘。
      */
     override fun newImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)
-        .components { add(MediaStoreThumbnailFetcherFactory()) }
+        .components {
+            add(MediaStoreThumbnailFetcherFactory())
+            add(OriginalImageFetcherFactory())
+            add(OriginalImageKeyer())
+        }
         .diskCache {
             DiskCache.Builder()
                 .directory(cacheDir.resolve(DISK_CACHE_DIR).toOkioPath())

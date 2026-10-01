@@ -1,5 +1,6 @@
 package com.example.pixcase.ui.feature.timeline
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
@@ -41,7 +42,7 @@ private val CELL_SPACING = 2.dp
  * 与已解码的缩略图,避免整屏重建。
  */
 @Composable
-fun PhotoGrid(items: LazyPagingItems<TimelineItem>, modifier: Modifier = Modifier) {
+fun PhotoGrid(items: LazyPagingItems<TimelineItem>, onPhotoClick: (Long) -> Unit, modifier: Modifier = Modifier) {
     val locale: Locale = LocalConfiguration.current.locales[0]
     val today = remember { LocalDate.now(ZoneId.systemDefault()) }
 
@@ -66,7 +67,7 @@ fun PhotoGrid(items: LazyPagingItems<TimelineItem>, modifier: Modifier = Modifie
         ) { index ->
             when (val item = items[index]) {
                 is TimelineItem.DateHeader -> DateHeaderRow(dateHeaderLabel(item.date, today, locale))
-                is TimelineItem.Photo -> PhotoCell(item.photo)
+                is TimelineItem.Photo -> PhotoCell(item.photo, onPhotoClick)
                 // enablePlaceholders = false 时已加载下标不会是占位;未加载的下标
                 // LazyGrid 不会请求渲染,这里的 null 分支只为满足类型穷尽。
                 null -> Unit
@@ -92,14 +93,17 @@ private fun DateHeaderRow(label: DateHeaderLabel) {
 }
 
 @Composable
-private fun PhotoCell(photo: MediaPhoto) {
+private fun PhotoCell(photo: MediaPhoto, onPhotoClick: (Long) -> Unit) {
     AsyncImage(
+        // 传 Uri 而不是 OriginalImage:命中缩略图 Fetcher,走系统缩略图。
         model = photo.uri,
         contentDescription = photo.displayName,
         contentScale = ContentScale.Crop,
         // 用纯色占位而不是留白:缩略图解码前先占住格子,避免首屏布局跳动。
         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
         error = ColorPainter(MaterialTheme.colorScheme.errorContainer),
-        modifier = Modifier.aspectRatio(1f)
+        modifier = Modifier
+            .aspectRatio(1f)
+            .clickable { onPhotoClick(photo.id) }
     )
 }

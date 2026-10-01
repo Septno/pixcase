@@ -26,6 +26,19 @@ internal object MediaStoreProjection {
     )
 
     /**
+     * 查看器补查的列:列表列 + 尺寸。
+     *
+     * 列表投影故意不取宽度 / 高度 / 大小 —— 网格只需要缩略图,多读这几列会让每页多传
+     * 三个字段;查看器按 mediaId 单独查一行,代价可以忽略。
+     * 不含 ORIENTATION:解码时 Coil 会按 EXIF 自动摆正,查看器无需自己处理。
+     */
+    val PHOTO_DETAIL_COLUMNS: Array<String> = IMAGE_COLUMNS + arrayOf(
+        MediaStore.MediaColumns.WIDTH,
+        MediaStore.MediaColumns.HEIGHT,
+        MediaStore.MediaColumns.SIZE
+    )
+
+    /**
      * 时间线排序与分组共用的时间基准:拍摄时间优先,缺失(0 或 NULL)时回退入库时间。
      * DATE_TAKEN 是毫秒、DATE_ADDED 是秒,故回退分支乘 1000 对齐。
      *
