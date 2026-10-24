@@ -76,8 +76,9 @@ android {
         }
     }
 
-    // Migration 测试:MigrationTestHelper 从 assets 读 schema JSON,与 ksp schemaLocation 同源
-    sourceSets.getByName("test") {
+    // Migration 测试:Robolectric 的 test_config 把 assets 指向 debug 变体的 mergeDebugAssets,
+    // schema JSON 必须挂进 debug sourceSet 才可见(仅 debug 打包,release 不带)
+    sourceSets.getByName("debug") {
         assets.srcDir("$projectDir/schemas")
     }
     testOptions {
@@ -190,6 +191,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.androidx.test.core)
 
     // Instrumented 测试
     androidTestImplementation(libs.androidx.test.ext.junit)
