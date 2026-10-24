@@ -7,6 +7,7 @@ import androidx.paging.PagingData
 import app.cash.turbine.test
 import com.example.pixcase.R
 import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
+import com.example.pixcase.data.prefs.UserPreferencesDataSource
 import com.example.pixcase.data.repository.PhotoRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -41,6 +42,7 @@ import org.junit.Test
 class TimelineViewModelSelectionTest {
     private val appContext = mockk<Context>(relaxed = true)
     private val repository = mockk<PhotoRepository>(relaxed = true)
+    private val userPreferences = mockk<UserPreferencesDataSource>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
     @Before
@@ -49,6 +51,7 @@ class TimelineViewModelSelectionTest {
         mockkStatic(ContextCompat::class)
         every { ContextCompat.checkSelfPermission(any(), any()) } returns PackageManager.PERMISSION_GRANTED
         every { repository.images() } returns flowOf(PagingData.empty())
+        every { userPreferences.gridColumns() } returns 3
     }
 
     @After
@@ -59,7 +62,7 @@ class TimelineViewModelSelectionTest {
 
     @Test
     fun `selectPhoto enters selection with the tapped id`() = runTest(testDispatcher) {
-        val vm = TimelineViewModel(appContext, repository)
+        val vm = TimelineViewModel(appContext, repository, userPreferences)
 
         vm.selectPhoto(1L)
 
@@ -68,7 +71,7 @@ class TimelineViewModelSelectionTest {
 
     @Test
     fun `togglePhotoSelection removes when present and empties selection`() = runTest(testDispatcher) {
-        val vm = TimelineViewModel(appContext, repository)
+        val vm = TimelineViewModel(appContext, repository, userPreferences)
         vm.selectPhoto(1L)
         vm.selectPhoto(2L)
 
@@ -83,7 +86,7 @@ class TimelineViewModelSelectionTest {
 
     @Test
     fun `clearSelection exits selection mode`() = runTest(testDispatcher) {
-        val vm = TimelineViewModel(appContext, repository)
+        val vm = TimelineViewModel(appContext, repository, userPreferences)
         vm.selectPhoto(1L)
 
         vm.clearSelection()
@@ -95,7 +98,7 @@ class TimelineViewModelSelectionTest {
     fun `toggleFavoriteForSelection favorites when selection has unfavorited items`() = runTest(testDispatcher) {
         coEvery { repository.favoritesOf(setOf(1L, 2L)) } returns emptySet()
         coEvery { repository.setFavorite(setOf(1L, 2L), true) } returns null
-        val vm = TimelineViewModel(appContext, repository)
+        val vm = TimelineViewModel(appContext, repository, userPreferences)
         vm.selectPhoto(1L)
         vm.selectPhoto(2L)
 
@@ -112,7 +115,7 @@ class TimelineViewModelSelectionTest {
     fun `toggleFavoriteForSelection unfavorites when all selected are favorited`() = runTest(testDispatcher) {
         coEvery { repository.favoritesOf(setOf(1L)) } returns setOf(1L)
         coEvery { repository.setFavorite(setOf(1L), false) } returns null
-        val vm = TimelineViewModel(appContext, repository)
+        val vm = TimelineViewModel(appContext, repository, userPreferences)
         vm.selectPhoto(1L)
 
         vm.events.test {
@@ -127,7 +130,7 @@ class TimelineViewModelSelectionTest {
     @Test
     fun `hideSelection hides and clears selection`() = runTest(testDispatcher) {
         coEvery { repository.hidePhotos(setOf(3L)) } just runs
-        val vm = TimelineViewModel(appContext, repository)
+        val vm = TimelineViewModel(appContext, repository, userPreferences)
         vm.selectPhoto(3L)
 
         vm.events.test {
@@ -142,7 +145,7 @@ class TimelineViewModelSelectionTest {
 
     @Test
     fun `deleteSelection on legacy sdk asks for permanent delete confirmation first`() = runTest(testDispatcher) {
-        val vm = TimelineViewModel(appContext, repository)
+        val vm = TimelineViewModel(appContext, repository, userPreferences)
         vm.selectPhoto(1L)
         vm.selectPhoto(2L)
 
@@ -159,7 +162,7 @@ class TimelineViewModelSelectionTest {
     fun `deleteSelectionConfirmed performs direct delete and clears selection`() = runTest(testDispatcher) {
         val outcome = MediaStorePhotoWriter.DeleteOutcome.Completed(2, listOf(1L, 2L))
         coEvery { repository.deletePhotos(setOf(1L, 2L)) } returns outcome
-        val vm = TimelineViewModel(appContext, repository)
+        val vm = TimelineViewModel(appContext, repository, userPreferences)
         vm.selectPhoto(1L)
         vm.selectPhoto(2L)
 
@@ -176,7 +179,7 @@ class TimelineViewModelSelectionTest {
     fun `deleteSelectionConfirmed reports failure when nothing was deleted`() = runTest(testDispatcher) {
         val outcome = MediaStorePhotoWriter.DeleteOutcome.Completed(0, emptyList())
         coEvery { repository.deletePhotos(setOf(1L)) } returns outcome
-        val vm = TimelineViewModel(appContext, repository)
+        val vm = TimelineViewModel(appContext, repository, userPreferences)
         vm.selectPhoto(1L)
 
         vm.events.test {

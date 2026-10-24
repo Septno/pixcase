@@ -14,6 +14,7 @@ import com.example.pixcase.R
 import com.example.pixcase.core.permission.PermissionUiState
 import com.example.pixcase.core.permission.requiredMediaPermissions
 import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
+import com.example.pixcase.data.prefs.UserPreferencesDataSource
 import com.example.pixcase.data.repository.PhotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -51,7 +52,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class TimelineViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
-    private val repository: PhotoRepository
+    private val repository: PhotoRepository,
+    private val userPreferences: UserPreferencesDataSource
 ) : ViewModel() {
 
     /**
@@ -85,6 +87,26 @@ class TimelineViewModel @Inject constructor(
 
     /** 选中集合;空集 = 不在多选模式。 */
     val selectedIds: StateFlow<Set<Long>> = _selectedIds.asStateFlow()
+
+    // ---- 网格列数(捏合变列数) ----
+
+    private val _columnCount = MutableStateFlow(
+        userPreferences.gridColumns().coerceIn(MIN_COLUMNS, MAX_ABSOLUTE_COLUMNS)
+    )
+
+    /**
+     * 时间线网格列数,用户偏好:切 tab / 转屏 / 进程重启都不丢(SharedPreferences 持久化)。
+     * 这里只夹绝对边界;按屏幕宽度反推的上限由 UI 层在调用 [setColumnCount] 前夹取。
+     */
+    val columnCount: StateFlow<Int> = _columnCount.asStateFlow()
+
+    /** 捏合改变列数时调用;值不变时不写偏好,避免捏合过程反复落盘。 */
+    fun setColumnCount(count: Int) {
+        val clamped = count.coerceIn(MIN_COLUMNS, MAX_ABSOLUTE_COLUMNS)
+        if (clamped == _columnCount.value) return
+        _columnCount.value = clamped
+        userPreferences.setGridColumns(clamped)
+    }
 
     /**
      * 选中项的收藏覆盖情况:null = 未选中;true = 所选全部已收藏;false = 存在未收藏项。

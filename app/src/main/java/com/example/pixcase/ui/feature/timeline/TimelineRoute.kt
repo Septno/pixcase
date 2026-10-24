@@ -71,6 +71,7 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
     val lazyItems = viewModel.timelineFlow.collectAsLazyPagingItems()
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val allFavorited by viewModel.selectionAllFavorited.collectAsStateWithLifecycle()
+    val columnCount by viewModel.columnCount.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -87,6 +88,8 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
                 TimelineContent(
                     items = lazyItems,
                     selectedIds = selectedIds,
+                    columnCount = columnCount,
+                    onColumnCountChange = viewModel::setColumnCount,
                     onPhotoClick = { photoId ->
                         if (selectedIds.isEmpty()) onOpenViewer(photoId) else viewModel.togglePhotoSelection(photoId)
                     },
@@ -130,6 +133,8 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
 private fun TimelineContent(
     items: LazyPagingItems<TimelineItem>,
     selectedIds: Set<Long>,
+    columnCount: Int,
+    onColumnCountChange: (Int) -> Unit,
     onPhotoClick: (Long) -> Unit,
     onPhotoLongPress: (Long) -> Unit
 ) {
@@ -143,6 +148,8 @@ private fun TimelineContent(
             PhotoGrid(
                 items = items,
                 selectedIds = selectedIds,
+                columnCount = columnCount,
+                onColumnCountChange = onColumnCountChange,
                 onPhotoClick = onPhotoClick,
                 onPhotoLongPress = onPhotoLongPress
             )

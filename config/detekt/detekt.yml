@@ -2,6 +2,8 @@
 # 调整项:
 # - FunctionNaming:排除 @Composable 注解的函数,Compose 官方用 PascalCase
 # - ForbiddenComment:允许 TODO / FIXME / NOTE 等开发注释关键字
+# - TooManyFunctions:时间线 ViewModel 聚合多选与图像操作,函数数超默认 11
+# - LongParameterList:排除 @Composable(回调式签名参数多属官方惯例)
 
 build:
   maxIssues: 0           # 阶段 0 要求 0 issue(全警告视为错误)
@@ -38,8 +40,6 @@ style:
     active: false  # detekt 1.23 默认禁止 TODO/FIXME/STOPSHIP;阶段 0-1 累积技术债时常出现,
                    # 项目级禁用该规则,后续阶段收敛技术债后再单独启用
 
-# 项目级 excludes(本项目暂不配置,需要时按 detekt pathFilter 语法添加)
-# excludes: '**/generated/**,**/build/**'
 # 阶段 2 起时间线 ViewModel 同时承载分页状态、多选状态与图像操作编排,函数数
 # 超出默认 11;18 的上限给后续阶段(重命名 / 移动等操作项)留出余量。
 complexity:
@@ -48,3 +48,10 @@ complexity:
     thresholdInClasses: 18
     thresholdInFiles: 18
     thresholdInInterfaces: 18
+  LongParameterList:
+    # Compose 的回调式签名(items + 状态 + 若干回调 + modifier)参数多属官方惯例,
+    # 不按普通函数的参数个数上限报警
+    ignoreAnnotated: ['Composable']
+
+# 项目级 excludes(本项目暂不配置,需要时按 detekt pathFilter 语法添加)
+# excludes: '**/generated/**,**/build/**'

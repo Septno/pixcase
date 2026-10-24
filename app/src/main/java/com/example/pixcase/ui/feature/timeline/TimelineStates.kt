@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.example.pixcase.R
 
 private const val SKELETON_ITEM_COUNT = 30
+private const val SKELETON_COLUMNS = 3
 private const val PULSE_MILLIS = 700
 private const val PULSE_MIN_ALPHA = 0.25f
 private const val PULSE_MAX_ALPHA = 0.6f
@@ -53,7 +54,7 @@ fun LoadingSkeletonGrid(modifier: Modifier = Modifier) {
     val color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)
 
     LazyVerticalGrid(
-        columns = GridCells.Fixed(COLUMN_COUNT),
+        columns = GridCells.Fixed(SKELETON_COLUMNS),
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(CELL_SPACING),
         horizontalArrangement = Arrangement.spacedBy(CELL_SPACING),
