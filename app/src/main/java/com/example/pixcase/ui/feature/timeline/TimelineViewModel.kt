@@ -1,6 +1,8 @@
 package com.example.pixcase.ui.feature.timeline
 
+import android.app.WallpaperManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
@@ -14,6 +16,8 @@ import com.example.pixcase.R
 import com.example.pixcase.core.permission.PermissionUiState
 import com.example.pixcase.core.permission.requiredMediaPermissions
 import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
+import com.example.pixcase.data.mediastore.baseNameOf
+import com.example.pixcase.data.mediastore.buildDisplayName
 import com.example.pixcase.data.prefs.UserPreferencesDataSource
 import com.example.pixcase.data.repository.PhotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -224,6 +228,114 @@ class TimelineViewModel @Inject constructor(
                 if (deletedCount > 0) R.string.msg_deleted else R.string.msg_delete_failed,
                 deletedCount
             )
+        )
+    }
+
+    // ---- 分享 / 壁纸 / 重命名(阶段 2) ----
+
+    /** 重命名等待写授权期间挂起的参数(id 到 新名),授权成功后重试。 */
+    private var pendingRename: Pair<Long, String>? = null
+
+    /** 分享选中照片:取齐 Uri 后交 UI 启动系统 chooser(纯只读操作,不改任何状态)。 */
+    fun shareSelection() {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val uris = repository.photosByIds(ids).map { it.uri }
+            if (uris.isNotEmpty()) _events.send(TimelineEvent.SharePhotos(uris))
+        }
+    }
+
+    /**
+     * 设为壁纸:走系统「裁剪并设为壁纸」流程,单张语义 —— 选中数不是 1 时明确提示,
+     * 而不是悄悄取第一张。Intent 在 ViewModel 构造(appContext 可用,同 appSettingsIntent 惯例)。
+     */
+    fun setWallpaperForSelection() {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val photos = repository.photosByIds(ids)
+            if (photos.size != 1) {
+                _events.send(TimelineEvent.Message(R.string.msg_only_one_photo))
+                return@launch
+            }
+            val intent = try {
+                WallpaperManager.getInstance(appContext)
+                    .getCropAndSetWallpaperIntent(photos.single().uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (ignored: IllegalArgumentException) {
+                // Uri 不是可授权的 MediaProvider 媒体 Uri(理论上不会发生):降级为失败提示
+                null
+            }
+            _events.send(
+                if (intent != null) {
+                    TimelineEvent.LaunchSetWallpaper(intent)
+                } else {
+                    TimelineEvent.Message(R.string.msg_wallpaper_failed)
+                }
+            )
+        }
+    }
+
+    /** 点「重命名」:单张语义校验后,取当前文件名拆出的主体名,交 UI 弹输入对话框。 */
+    fun requestRename() {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val photos = repository.photosByIds(ids)
+            if (photos.size != 1) {
+                _events.send(TimelineEvent.Message(R.string.msg_only_one_photo))
+                return@launch
+            }
+            _events.send(TimelineEvent.OpenRenameDialog(baseNameOf(photos.single().displayName)))
+        }
+    }
+
+    /**
+     * 执行重命名(UI 侧已用 [isValidDisplayNameBase] 做过行内校验,这里拼回扩展名后写库)。
+     * API 30+ 需要写授权时挂起 [pendingRename],等 [onWriteConsentApproved] 重试。
+     */
+    fun renameSelection(baseName: String) {
+        val ids = _selectedIds.value
+        if (ids.size != 1) return
+        viewModelScope.launch {
+            val photo = repository.photosByIds(ids).firstOrNull()
+            if (photo == null) {
+                _events.send(TimelineEvent.Message(R.string.msg_rename_failed))
+                return@launch
+            }
+            val newName = buildDisplayName(baseName, photo.displayName)
+            if (newName == photo.displayName) return@launch
+            when (val outcome = repository.renamePhoto(photo.id, newName)) {
+                is MediaStorePhotoWriter.RenameOutcome.Done ->
+                    finishRename(outcome.renamed)
+                is MediaStorePhotoWriter.RenameOutcome.NeedsConsent -> {
+                    pendingRename = photo.id to newName
+                    _events.send(TimelineEvent.LaunchWriteConsent(outcome.sender))
+                }
+            }
+        }
+    }
+
+    /** 写授权同意后重试重命名;授权在本次开机内持续有效,直接更新即可成功。 */
+    fun onWriteConsentApproved() {
+        val (mediaId, newName) = pendingRename ?: return
+        viewModelScope.launch {
+            val outcome = repository.renamePhoto(mediaId, newName)
+            if (outcome is MediaStorePhotoWriter.RenameOutcome.Done) finishRename(outcome.renamed)
+        }
+    }
+
+    /** 写授权被拒:丢弃挂起的重命名,保持现场不变。 */
+    fun onWriteConsentDenied() {
+        pendingRename = null
+    }
+
+    private suspend fun finishRename(renamed: Boolean) {
+        pendingRename = null
+        _selectedIds.value = emptySet()
+        _events.send(
+            TimelineEvent.Message(if (renamed) R.string.msg_renamed else R.string.msg_rename_failed)
         )
     }
 

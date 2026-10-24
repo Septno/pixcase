@@ -1,6 +1,8 @@
 package com.example.pixcase.ui.feature.timeline
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -75,19 +77,17 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
     val columnCount by viewModel.columnCount.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
-
-    // 多选激活时 BACK 只退出多选,不退出页面(时间线是起始目的地,默认 BACK 会直接结束 Activity)。
-    BackHandler(enabled = selectedIds.isNotEmpty()) { viewModel.clearSelection() }
-
-    TimelineEventsEffect(viewModel = viewModel, snackbarHostState = snackbarHostState) {
-        showDeleteDialog = true
-    }
+    var renameBaseName by rememberSaveable { mutableStateOf<String?>(null) }
+    TimelineEventsEffect(
+        viewModel = viewModel,
+        snackbarHostState = snackbarHostState,
+        onRequestDeleteDialog = { showDeleteDialog = true },
+        onOpenRenameDialog = { baseName -> renameBaseName = baseName }
+    )
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            if (selectedIds.isNotEmpty()) {
-                SelectionTopBar(count = selectedIds.size, onClose = viewModel::clearSelection)
-            }
+            SelectionTopBarIfActive(selectedIds = selectedIds, onClose = viewModel::clearSelection)
             Box(modifier = Modifier.weight(1f)) {
                 TimelineContent(
                     items = lazyItems,
@@ -100,29 +100,96 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
                     onPhotoLongPress = viewModel::selectPhoto
                 )
             }
-            if (selectedIds.isNotEmpty()) {
-                SelectionActionBar(
-                    allFavorited = allFavorited,
-                    onToggleFavorite = viewModel::toggleFavoriteForSelection,
-                    onHide = viewModel::hideSelection,
-                    onDelete = viewModel::deleteSelection
-                )
-            }
+            SelectionActionBarIfActive(
+                selectedIds = selectedIds,
+                allFavorited = allFavorited,
+                onToggleFavorite = viewModel::toggleFavoriteForSelection,
+                onShare = viewModel::shareSelection,
+                onRename = viewModel::requestRename,
+                onSetWallpaper = viewModel::setWallpaperForSelection,
+                onHide = viewModel::hideSelection,
+                onDelete = viewModel::deleteSelection
+            )
         }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
     }
 
+    TimelineDialogs(
+        showDeleteDialog = showDeleteDialog,
+        deleteCount = selectedIds.size,
+        onDeleteConfirmed = {
+            showDeleteDialog = false
+            viewModel.deleteSelectionConfirmed()
+        },
+        onDismissDelete = { showDeleteDialog = false },
+        renameBaseName = renameBaseName,
+        onRenameConfirmed = { input ->
+            renameBaseName = null
+            viewModel.renameSelection(input)
+        },
+        onDismissRename = { renameBaseName = null }
+    )
+}
+
+/** 多选激活时显示顶栏(退出按钮 + 已选计数),否则不占任何空间。 */
+@Composable
+private fun SelectionTopBarIfActive(selectedIds: Set<Long>, onClose: () -> Unit) {
+    if (selectedIds.isNotEmpty()) {
+        SelectionTopBar(count = selectedIds.size, onClose = onClose)
+    }
+}
+
+/**
+ * 多选激活时显示底部操作栏,否则不占任何空间 —— 网格缩小让位,而不是悬浮遮挡照片。
+ * weight 调整必须在真正的 ColumnScope 里做,故拆成两个 IfActive 条件组件夹住正文。
+ */
+@Composable
+private fun SelectionActionBarIfActive(
+    selectedIds: Set<Long>,
+    allFavorited: Boolean?,
+    onToggleFavorite: () -> Unit,
+    onShare: () -> Unit,
+    onRename: () -> Unit,
+    onSetWallpaper: () -> Unit,
+    onHide: () -> Unit,
+    onDelete: () -> Unit
+) {
+    if (selectedIds.isNotEmpty()) {
+        SelectionActionBar(
+            allFavorited = allFavorited,
+            onToggleFavorite = onToggleFavorite,
+            onShare = onShare,
+            onRename = onRename,
+            onSetWallpaper = onSetWallpaper,
+            onHide = onHide,
+            onDelete = onDelete
+        )
+    }
+}
+
+/** 删除确认框与重命名对话框集中渲染:二者互斥,均由一次性事件或按钮触发。 */
+@Composable
+private fun TimelineDialogs(
+    showDeleteDialog: Boolean,
+    deleteCount: Int,
+    onDeleteConfirmed: () -> Unit,
+    onDismissDelete: () -> Unit,
+    renameBaseName: String?,
+    onRenameConfirmed: (String) -> Unit,
+    onDismissRename: () -> Unit
+) {
     if (showDeleteDialog) {
         PermanentDeleteDialog(
-            count = selectedIds.size,
-            onConfirm = {
-                showDeleteDialog = false
-                viewModel.deleteSelectionConfirmed()
-            },
-            onDismiss = { showDeleteDialog = false }
+            count = deleteCount,
+            onConfirm = onDeleteConfirmed,
+            onDismiss = onDismissDelete
+        )
+    }
+    renameBaseName?.let { baseName ->
+        RenameDialog(
+            currentBaseName = baseName,
+            onConfirm = onRenameConfirmed,
+            onDismiss = onDismissRename
         )
     }
 }
@@ -162,16 +229,21 @@ private fun TimelineContent(
 }
 
 /**
- * 一次性事件接线:启动系统 PendingIntent(删除确认 / 收藏同步)、弹出永久删除确认框、
- * Snackbar 反馈。PendingIntent 的启动必须发生在 Activity 侧,故集中在 Composable 处理。
+ * 一次性事件接线:启动系统 PendingIntent(删除确认 / 收藏同步 / 写授权)与普通 Intent
+ * (分享 chooser / 壁纸裁剪)、弹出确认框与输入对话框、Snackbar 反馈。
+ * 启动动作必须发生在 Activity 侧,故集中在 Composable 处理。
  */
 @Composable
 private fun TimelineEventsEffect(
     viewModel: TimelineViewModel,
     snackbarHostState: SnackbarHostState,
-    onRequestDeleteDialog: () -> Unit
+    onRequestDeleteDialog: () -> Unit,
+    onOpenRenameDialog: (String) -> Unit
 ) {
     val context = LocalContext.current
+    // 多选激活时 BACK 只退出多选,不退出页面(时间线是起始目的地,默认 BACK 会直接结束 Activity)。
+    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
+    BackHandler(enabled = selectedIds.isNotEmpty()) { viewModel.clearSelection() }
     val deleteConsentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -181,15 +253,45 @@ private fun TimelineEventsEffect(
     val favoriteSyncLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { }
+    // 重命名的写授权:同意后重试直接更新;拒绝则丢弃挂起的重命名,现场不变。
+    val writeConsentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewModel.onWriteConsentApproved()
+        } else {
+            viewModel.onWriteConsentDenied()
+        }
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 is TimelineEvent.LaunchDeleteConsent ->
                     deleteConsentLauncher.launch(IntentSenderRequest.Builder(event.sender).build())
+                is TimelineEvent.LaunchWriteConsent ->
+                    writeConsentLauncher.launch(IntentSenderRequest.Builder(event.sender).build())
                 is TimelineEvent.LaunchFavoriteSync ->
                     favoriteSyncLauncher.launch(IntentSenderRequest.Builder(event.sender).build())
                 is TimelineEvent.ConfirmPermanentDelete -> onRequestDeleteDialog()
+                is TimelineEvent.SharePhotos -> {
+                    val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                        type = "image/*"
+                        putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(event.uris))
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    try {
+                        context.startActivity(Intent.createChooser(shareIntent, null))
+                    } catch (ignored: ActivityNotFoundException) {
+                        snackbarHostState.showSnackbar(context.getString(R.string.msg_no_share_app))
+                    }
+                }
+                is TimelineEvent.LaunchSetWallpaper -> try {
+                    context.startActivity(event.intent)
+                } catch (ignored: ActivityNotFoundException) {
+                    snackbarHostState.showSnackbar(context.getString(R.string.msg_wallpaper_failed))
+                }
+                is TimelineEvent.OpenRenameDialog -> onOpenRenameDialog(event.currentBaseName)
                 is TimelineEvent.Message ->
                     snackbarHostState.showSnackbar(context.getString(event.resId, event.count))
             }

@@ -123,6 +123,16 @@ class PhotoRepository @Inject constructor(
             }
         }
 
+    /** 按 mediaId 批量取照片(分享 / 壁纸 / 重命名要 Uri 与文件名,选中状态只有 id)。 */
+    suspend fun photosByIds(mediaIds: Collection<Long>): List<MediaPhoto> = dataSource.photosByIds(mediaIds)
+
+    /**
+     * 重命名单张照片。API 30+ 遇到非本 App 的照片会返回 NeedsConsent(先 createWriteRequest
+     * 拿用户授权),调用方在授权成功后用相同参数重试本方法即可。
+     */
+    suspend fun renamePhoto(mediaId: Long, newDisplayName: String): MediaStorePhotoWriter.RenameOutcome =
+        writer.renameImage(mediaId, newDisplayName)
+
     /** API 30+ 系统确认框同意后调用:清理这些照片的本地收藏/隐藏记录。 */
     suspend fun onSystemDeleteApproved(mediaIds: Collection<Long>) {
         clearLocalMetadataFor(mediaIds)

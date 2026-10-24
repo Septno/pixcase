@@ -41,13 +41,13 @@ style:
                    # 项目级禁用该规则,后续阶段收敛技术债后再单独启用
 
 # 阶段 2 起时间线 ViewModel 同时承载分页状态、多选状态与图像操作编排,函数数
-# 超出默认 11;18 的上限给后续阶段(重命名 / 移动等操作项)留出余量。
+# 超出默认 11;22 的上限覆盖阶段 2 全部操作项编排。
 complexity:
   TooManyFunctions:
     active: true
-    thresholdInClasses: 18
-    thresholdInFiles: 18
-    thresholdInInterfaces: 18
+    thresholdInClasses: 22
+    thresholdInFiles: 22
+    thresholdInInterfaces: 22
   LongParameterList:
     # Compose 的回调式签名(items + 状态 + 若干回调 + modifier)参数多属官方惯例,
     # 不按普通函数的参数个数上限报警

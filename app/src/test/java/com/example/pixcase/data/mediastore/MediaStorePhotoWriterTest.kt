@@ -2,10 +2,15 @@ package com.example.pixcase.data.mediastore
 
 import android.content.ContentResolver
 import android.content.ContentUris
+import android.content.ContentValues
 import android.net.Uri
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkConstructor
 import io.mockk.mockkStatic
+import io.mockk.runs
+import io.mockk.unmockkConstructor
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -36,10 +41,15 @@ class MediaStorePhotoWriterTest {
     fun setup() {
         mockkStatic(ContentUris::class)
         every { ContentUris.withAppendedId(any(), any()) } answers { mockk(relaxed = true) }
+        // renameImage 在 JVM 上会实例化 ContentValues(Android 类,方法未 mock 即抛异常),
+        // 把构造出的实例整体 mock 掉,put 变 no-op
+        mockkConstructor(ContentValues::class)
+        every { anyConstructed<ContentValues>().put(any(), any<String>()) } just runs
     }
 
     @After
     fun teardown() {
+        unmockkConstructor(ContentValues::class)
         unmockkStatic(ContentUris::class)
     }
 
@@ -85,5 +95,34 @@ class MediaStorePhotoWriterTest {
     @Test
     fun `syncFavorite with empty ids returns null`() = runTest {
         assertNull(writer.syncFavorite(emptyList(), false))
+    }
+
+    // ---- renameImage(JVM SDK_INT = 0,走 API 29 及以下的直接更新路径) ----
+
+    @Test
+    fun `renameImage legacy path returns Done when update succeeds`() = runTest {
+        every { resolver.update(any(), any(), any(), any()) } returns 1
+
+        val outcome = writer.renameImage(1L, "new_name.png")
+
+        assertEquals(MediaStorePhotoWriter.RenameOutcome.Done(true), outcome)
+    }
+
+    @Test
+    fun `renameImage legacy path reports not renamed when system updates zero rows`() = runTest {
+        every { resolver.update(any(), any(), any(), any()) } returns 0
+
+        val outcome = writer.renameImage(1L, "new_name.png")
+
+        assertEquals(MediaStorePhotoWriter.RenameOutcome.Done(false), outcome)
+    }
+
+    @Test
+    fun `renameImage legacy path reports not renamed when permission is missing`() = runTest {
+        every { resolver.update(any(), any(), any(), any()) } throws SecurityException("denied")
+
+        val outcome = writer.renameImage(1L, "new_name.png")
+
+        assertEquals(MediaStorePhotoWriter.RenameOutcome.Done(false), outcome)
     }
 }

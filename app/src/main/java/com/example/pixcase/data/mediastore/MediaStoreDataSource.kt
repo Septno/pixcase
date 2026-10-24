@@ -82,6 +82,33 @@ class MediaStoreDataSource @Inject constructor(
     }
 
     /**
+     * 按 mediaId 批量查询照片(分享 / 壁纸 / 重命名需要选中项的 Uri 与文件名,
+     * 而多选状态只存 id)。IN 查询,返回顺序按 _ID 升序;查不到的 id 自然缺席。
+     */
+    suspend fun photosByIds(mediaIds: Collection<Long>): List<MediaPhoto> = withContext(ioDispatcher) {
+        if (mediaIds.isEmpty()) return@withContext emptyList()
+        val placeholders = mediaIds.joinToString(",") { "?" }
+        val cursor = contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            MediaStoreProjection.IMAGE_COLUMNS,
+            /* selection = */
+            "${MediaStore.Images.Media._ID} IN ($placeholders)",
+            /* selectionArgs = */
+            mediaIds.map { it.toString() }.toTypedArray(),
+            /* sortOrder = */
+            null
+        ) ?: return@withContext emptyList()
+
+        cursor.use { c ->
+            buildList {
+                while (c.moveToNext()) {
+                    c.toMediaPhotoOrNull(imagesUri)?.let(::add)
+                }
+            }
+        }
+    }
+
+    /**
      * 注册 ContentObserver 到 MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
      * 返回 observer 实例,调用方持有以便在不需要时通过 [unregisterObserver] 解注册。
      * 一般在 Application.onCreate() 调用一次,进程生命周期内不必 unregister。

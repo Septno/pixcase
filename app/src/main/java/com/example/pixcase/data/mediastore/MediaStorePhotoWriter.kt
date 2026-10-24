@@ -89,6 +89,41 @@ class MediaStorePhotoWriter @Inject constructor(
         }
     }
 
+    sealed interface RenameOutcome {
+
+        /** 重命名已执行;[renamed] 为 false 表示系统侧更新 0 行(权限被回收等)。 */
+        data class Done(val renamed: Boolean) : RenameOutcome
+
+        /**
+         * API 30+ 且照片不属于本 App:直接 update DISPLAY_NAME 被拒,须先经
+         * `createWriteRequest` 拿到用户授权([sender] 由 UI 启动,同意后重试直接更新)。
+         */
+        data class NeedsConsent(val sender: IntentSender) : RenameOutcome
+    }
+
+    /**
+     * 重命名单张照片(改 DISPLAY_NAME)。
+     *
+     * 扩展名由调用方([DisplayNameValidator.buildDisplayName])拼好,这里只写库。
+     * API 29 及以下配合 WRITE / legacy 权限直接更新;API 30+ 先试直接更新,
+     * 照片不属于本 App 时被系统拒绝,退到 `createWriteRequest` 走授权。
+     */
+    suspend fun renameImage(mediaId: Long, newDisplayName: String): RenameOutcome = withContext(ioDispatcher) {
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, newDisplayName)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                RenameOutcome.Done(contentResolver.update(imageUri(mediaId), values, null, null) > 0)
+            } catch (ignored: SecurityException) {
+                val pendingIntent = MediaStore.createWriteRequest(contentResolver, listOf(imageUri(mediaId)))
+                RenameOutcome.NeedsConsent(pendingIntent.intentSender)
+            }
+        } else {
+            RenameOutcome.Done(contentResolver.updateQuietly(imageUri(mediaId), values) > 0)
+        }
+    }
+
     /**
      * 单张删除;无权限等场景计 0 行,不中断批量。
      * 异常按约定命名 `ignored`:该张删除失败是预期内的降级路径,不逐条上报。
