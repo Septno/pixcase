@@ -52,7 +52,22 @@ class TimelineColumnsTest {
         assertEquals(3, clampColumns(8, 200))
     }
 
+    @Test
+    fun `clamp also caps at absolute maximum on ultra wide screens`() {
+        // 1200dp 宽按 64dp 反推可到 18 列,但绝对上限 12 必须生效
+        assertEquals(MAX_ABSOLUTE_COLUMNS, clampColumns(99, 1200))
+    }
+
     // ---- accumulateZoom ----
+
+    @Test
+    fun `illegal zoom is ignored and accumulator is untouched`() {
+        // 双指坐标重合时系统侧可能算出 0 / NaN / Infinity:直接忽略本事件
+        assertEquals(1.2f to 0, accumulateZoom(1.2f, Float.NaN))
+        assertEquals(1.2f to 0, accumulateZoom(1.2f, Float.POSITIVE_INFINITY))
+        assertEquals(1.2f to 0, accumulateZoom(1.2f, 0f))
+        assertEquals(1.2f to 0, accumulateZoom(1.2f, -1.5f))
+    }
 
     @Test
     fun `zoom out beyond step reduces columns by one and consumes the step`() {

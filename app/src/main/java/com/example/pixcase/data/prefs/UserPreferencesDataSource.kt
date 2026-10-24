@@ -2,6 +2,7 @@ package com.example.pixcase.data.prefs
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,7 +24,7 @@ class UserPreferencesDataSource @Inject constructor(
     fun gridColumns(): Int = prefs.getInt(KEY_GRID_COLUMNS, DEFAULT_GRID_COLUMNS)
 
     fun setGridColumns(count: Int) {
-        prefs.edit().putInt(KEY_GRID_COLUMNS, count).apply()
+        prefs.edit { putInt(KEY_GRID_COLUMNS, count) }
     }
 
     private companion object {
