@@ -48,8 +48,10 @@ import coil3.request.ImageRequest
 import com.example.pixcase.R
 import com.example.pixcase.data.mediastore.OriginalImage
 import com.example.pixcase.data.model.MediaPhoto
+import com.example.pixcase.ui.feature.timeline.IndexedPhoto
+import com.example.pixcase.ui.feature.timeline.TimelineItem
 import com.example.pixcase.ui.feature.timeline.TimelineViewModel
-import com.example.pixcase.ui.feature.timeline.photosIn
+import com.example.pixcase.ui.feature.timeline.photosIndexedIn
 
 private const val CAPTION_ALPHA = 0.45f
 
@@ -59,6 +61,11 @@ private const val CAPTION_ALPHA = 0.45f
  * 数据**直接复用时间线的分页流**:[timelineViewModel] 由 NavGraph 传入时间线那一份实例,
  * 它的 `timelineFlow` 已经 `cachedIn` —— cachedIn 会把已加载的页重放给新的订阅者,
  * 所以这里不需要任何额外查询就能拿到与网格完全一致的窗口。
+ *
+ * 翻页窗口的推进机制(§ 六 1.3 调查结论):HorizontalPager 只组合当前页 ±1,页内容必须经
+ * `LazyPagingItems.get()` 回读 —— get 会向分页引擎上报访问位置(access hint),引擎才会
+ * 在接近窗口尾部时装填下一页;读快照列表(`itemSnapshotList`)不产生任何提示,曾经导致
+ * 查看器窗口永远停在进入时的范围。
  *
  * 前提是 `cachedIn` 之后没有再接 `map` / `insertSeparators`(那样会让重放失效),
  * 时间线那边保持这个约束。
@@ -72,7 +79,8 @@ fun ViewerRoute(
 ) {
     val items = timelineViewModel.timelineFlow.collectAsLazyPagingItems()
     // 用 State 而不是直接取 value:pageCount 的 lambda 要读到最新值。
-    val photosState = remember { derivedStateOf { photosIn(items.itemSnapshotList.items) } }
+    // 照片列表仍取自快照(定位 / 页数用),分页下标随行,供页内经 get() 回读。
+    val photosState = remember { derivedStateOf { photosIndexedIn(items.itemSnapshotList.items) } }
     val photos = photosState.value
     val pagerState = rememberPagerState(pageCount = { photosState.value.size })
 
@@ -83,7 +91,7 @@ fun ViewerRoute(
         onPhotoMissing = onBack
     )
 
-    val currentPhoto = photos.getOrNull(pagerState.settledPage)
+    val currentPhoto = photos.getOrNull(pagerState.settledPage)?.photo
     LaunchedEffect(currentPhoto?.id) {
         currentPhoto?.let { viewModel.loadDetails(it.id) }
     }
@@ -102,7 +110,12 @@ fun ViewerRoute(
             // 放大后禁掉翻页,避免与页内拖动抢手势。
             userScrollEnabled = !zoom.isZoomed
         ) { page ->
-            photos.getOrNull(page)?.let { photo -> ViewerPage(photo, zoom) }
+            photos.getOrNull(page)?.let { target ->
+                // 经 get() 回读当前页:HorizontalPager 只组合当前页 ±1,由此产生的
+                // access hint 与用户真实位置一致,翻近窗口尾部时引擎自动装填下一页。
+                val photo = (items[target.pagingIndex] as? TimelineItem.Photo)?.photo ?: target.photo
+                ViewerPage(photo, zoom)
+            }
         }
 
         currentPhoto?.let { photo ->
@@ -130,14 +143,14 @@ fun ViewerRoute(
  */
 @Composable
 private fun LocateInitialPhoto(
-    photos: List<MediaPhoto>,
+    photos: List<IndexedPhoto>,
     photoId: Long,
     pagerState: PagerState,
     onPhotoMissing: () -> Unit
 ) {
     var located by remember { mutableStateOf(false) }
     // 缩放时本界面每帧都会重组,不 remember 的话每帧都要扫一遍已加载窗口。
-    val index = remember(photos, photoId) { photos.indexOfFirst { it.id == photoId } }
+    val index = remember(photos, photoId) { photos.indexOfFirst { it.photo.id == photoId } }
 
     LaunchedEffect(photos, located) {
         if (located) return@LaunchedEffect
