@@ -12,12 +12,30 @@ interface AlbumPhotoDao {
     @Query("SELECT mediaId FROM album_photo WHERE albumId = :albumId ORDER BY addedAt DESC")
     fun observeMediaIdsByAlbum(albumId: Long): Flow<List<Long>>
 
-    @Query("SELECT COUNT(*) FROM album_photo WHERE mediaId = :mediaId")
-    suspend fun countAlbumsContaining(mediaId: Long): Int
+    @Query("SELECT COUNT(*) FROM album_photo WHERE albumId = :albumId")
+    suspend fun countInAlbum(albumId: Long): Int
+
+    /** 相册封面的自动来源:最近加入该相册的一张。 */
+    @Query("SELECT mediaId FROM album_photo WHERE albumId = :albumId ORDER BY addedAt DESC LIMIT 1")
+    suspend fun latestMediaIdInAlbum(albumId: Long): Long?
+
+    @Query("SELECT albumId FROM album_photo WHERE mediaId = :mediaId")
+    suspend fun albumIdsOf(mediaId: Long): List<Long>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(ref: AlbumPhotoCrossRef)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(refs: List<AlbumPhotoCrossRef>)
+
     @Query("DELETE FROM album_photo WHERE albumId = :albumId AND mediaId = :mediaId")
     suspend fun delete(albumId: Long, mediaId: Long)
+
+    /** 删光某个相册的全部关联(删除相册时)。 */
+    @Query("DELETE FROM album_photo WHERE albumId = :albumId")
+    suspend fun deleteAllInAlbum(albumId: Long)
+
+    /** 清掉一批照片的所有相册关联(MediaStore 真删后的孤儿清理,计划陷阱 3)。 */
+    @Query("DELETE FROM album_photo WHERE mediaId IN (:mediaIds)")
+    suspend fun deleteByMediaIds(mediaIds: Collection<Long>)
 }

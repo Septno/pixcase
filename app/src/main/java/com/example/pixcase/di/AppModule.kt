@@ -8,8 +8,12 @@ import com.example.pixcase.core.util.ApplicationScope
 import com.example.pixcase.core.util.DefaultDispatcher
 import com.example.pixcase.core.util.IoDispatcher
 import com.example.pixcase.data.db.AppDatabase
+import com.example.pixcase.data.db.dao.AlbumDao
+import com.example.pixcase.data.db.dao.AlbumPhotoDao
 import com.example.pixcase.data.db.dao.FavoriteDao
 import com.example.pixcase.data.db.dao.HiddenDao
+import com.example.pixcase.data.db.dao.PhotoTagDao
+import com.example.pixcase.data.db.dao.TagDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -57,6 +61,18 @@ object AppModule {
 
     @Provides
     fun provideHiddenDao(db: AppDatabase): HiddenDao = db.hiddenDao()
+
+    @Provides
+    fun provideAlbumDao(db: AppDatabase): AlbumDao = db.albumDao()
+
+    @Provides
+    fun provideAlbumPhotoDao(db: AppDatabase): AlbumPhotoDao = db.albumPhotoDao()
+
+    @Provides
+    fun provideTagDao(db: AppDatabase): TagDao = db.tagDao()
+
+    @Provides
+    fun providePhotoTagDao(db: AppDatabase): PhotoTagDao = db.photoTagDao()
 
     @Provides
     @ImagesContentUri

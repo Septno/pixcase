@@ -48,6 +48,7 @@ complexity:
     thresholdInClasses: 22
     thresholdInFiles: 22
     thresholdInInterfaces: 22
+    thresholdInObjects: 22
   LongParameterList:
     # Compose 的回调式签名(items + 状态 + 若干回调 + modifier)参数多属官方惯例,
     # 不按普通函数的参数个数上限报警

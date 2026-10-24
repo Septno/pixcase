@@ -28,4 +28,12 @@ interface AlbumDao {
 
     @Delete
     suspend fun delete(album: AlbumEntity)
+
+    /** 手动指定封面;同时刷新 updatedAt 让相册列表重排。 */
+    @Query("UPDATE album SET coverMediaId = :coverMediaId, updatedAt = :now WHERE id = :albumId")
+    suspend fun setCover(albumId: Long, coverMediaId: Long, now: Long)
+
+    /** 相册里已无照片时清空封面。 */
+    @Query("UPDATE album SET coverMediaId = NULL, updatedAt = :now WHERE id = :albumId")
+    suspend fun clearCover(albumId: Long, now: Long)
 }

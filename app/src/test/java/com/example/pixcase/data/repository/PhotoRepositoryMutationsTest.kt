@@ -1,8 +1,10 @@
 package com.example.pixcase.data.repository
 
 import android.content.IntentSender
+import com.example.pixcase.data.db.dao.AlbumPhotoDao
 import com.example.pixcase.data.db.dao.FavoriteDao
 import com.example.pixcase.data.db.dao.HiddenDao
+import com.example.pixcase.data.db.dao.PhotoTagDao
 import com.example.pixcase.data.db.entity.FavoriteEntity
 import com.example.pixcase.data.db.entity.HiddenEntity
 import com.example.pixcase.data.mediastore.MediaStoreDataSource
@@ -31,7 +33,9 @@ class PhotoRepositoryMutationsTest {
     private val writer = mockk<MediaStorePhotoWriter>()
     private val favoriteDao = mockk<FavoriteDao>()
     private val hiddenDao = mockk<HiddenDao>()
-    private val repository = PhotoRepository(dataSource, writer, favoriteDao, hiddenDao)
+    private val albumPhotoDao = mockk<AlbumPhotoDao>(relaxed = true)
+    private val photoTagDao = mockk<PhotoTagDao>(relaxed = true)
+    private val repository = PhotoRepository(dataSource, writer, favoriteDao, hiddenDao, albumPhotoDao, photoTagDao)
 
     @Test
     fun `deletePhotos completed clears local metadata only for deleted ids`() = runTest {
@@ -39,12 +43,17 @@ class PhotoRepositoryMutationsTest {
         coEvery { writer.deleteImages(listOf(1L, 2L)) } returns outcome
         coEvery { favoriteDao.deleteAll(listOf(2L)) } just runs
         coEvery { hiddenDao.deleteAll(listOf(2L)) } just runs
+        coEvery { albumPhotoDao.deleteByMediaIds(listOf(2L)) } just runs
+        coEvery { photoTagDao.deleteByMediaIds(listOf(2L)) } just runs
 
         val result = repository.deletePhotos(listOf(1L, 2L))
 
         assertEquals(outcome, result)
         coVerify(exactly = 1) { favoriteDao.deleteAll(listOf(2L)) }
         coVerify(exactly = 1) { hiddenDao.deleteAll(listOf(2L)) }
+        // 陷阱 3:相册 / 标签关联同样以 mediaId 挂靠,一并清理孤儿
+        coVerify(exactly = 1) { albumPhotoDao.deleteByMediaIds(listOf(2L)) }
+        coVerify(exactly = 1) { photoTagDao.deleteByMediaIds(listOf(2L)) }
     }
 
     @Test
@@ -63,11 +72,15 @@ class PhotoRepositoryMutationsTest {
     fun `onSystemDeleteApproved clears local metadata for the approved ids`() = runTest {
         coEvery { favoriteDao.deleteAll(setOf(9L)) } just runs
         coEvery { hiddenDao.deleteAll(setOf(9L)) } just runs
+        coEvery { albumPhotoDao.deleteByMediaIds(setOf(9L)) } just runs
+        coEvery { photoTagDao.deleteByMediaIds(setOf(9L)) } just runs
 
         repository.onSystemDeleteApproved(setOf(9L))
 
         coVerify(exactly = 1) { favoriteDao.deleteAll(setOf(9L)) }
         coVerify(exactly = 1) { hiddenDao.deleteAll(setOf(9L)) }
+        coVerify(exactly = 1) { albumPhotoDao.deleteByMediaIds(setOf(9L)) }
+        coVerify(exactly = 1) { photoTagDao.deleteByMediaIds(setOf(9L)) }
     }
 
     @Test

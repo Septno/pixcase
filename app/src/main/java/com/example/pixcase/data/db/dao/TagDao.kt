@@ -20,6 +20,9 @@ interface TagDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(tag: TagEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(tags: List<TagEntity>): List<Long>
+
     @Update
     suspend fun update(tag: TagEntity)
 

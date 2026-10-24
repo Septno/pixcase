@@ -6,8 +6,10 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.filter
 import androidx.paging.map
+import com.example.pixcase.data.db.dao.AlbumPhotoDao
 import com.example.pixcase.data.db.dao.FavoriteDao
 import com.example.pixcase.data.db.dao.HiddenDao
+import com.example.pixcase.data.db.dao.PhotoTagDao
 import com.example.pixcase.data.db.entity.FavoriteEntity
 import com.example.pixcase.data.db.entity.HiddenEntity
 import com.example.pixcase.data.mediastore.MediaStoreDataSource
@@ -37,7 +39,9 @@ class PhotoRepository @Inject constructor(
     private val dataSource: MediaStoreDataSource,
     private val writer: MediaStorePhotoWriter,
     private val favoriteDao: FavoriteDao,
-    private val hiddenDao: HiddenDao
+    private val hiddenDao: HiddenDao,
+    private val albumPhotoDao: AlbumPhotoDao,
+    private val photoTagDao: PhotoTagDao
 ) {
     /**
      * 时间线数据流。收藏/隐藏元数据用 [flatMapLatest] 包住 Pager:任一变化时取消旧收集、
@@ -142,6 +146,9 @@ class PhotoRepository @Inject constructor(
         if (mediaIds.isEmpty()) return
         favoriteDao.deleteAll(mediaIds)
         hiddenDao.deleteAll(mediaIds)
+        // 相册 / 标签关联同样以 mediaId 为外键(无级联),一并清理孤儿(计划陷阱 3)
+        albumPhotoDao.deleteByMediaIds(mediaIds)
+        photoTagDao.deleteByMediaIds(mediaIds)
     }
 
     private companion object {
