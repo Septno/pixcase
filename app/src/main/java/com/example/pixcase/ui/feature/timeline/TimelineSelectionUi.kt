@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -163,7 +164,7 @@ private fun SelectionActionButton(icon: ImageVector, label: String, onClick: () 
 @Composable
 internal fun RenameDialog(currentBaseName: String, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
     var text by rememberSaveable { mutableStateOf(currentBaseName) }
-    var errorResId by rememberSaveable { mutableStateOf(0) }
+    var errorResId by rememberSaveable { mutableIntStateOf(0) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

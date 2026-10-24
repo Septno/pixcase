@@ -11,6 +11,7 @@ import android.provider.MediaStore
 import androidx.paging.PagingSource
 import com.example.pixcase.core.util.IoDispatcher
 import com.example.pixcase.data.model.MediaPhoto
+import com.example.pixcase.di.ImagesContentUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.CopyOnWriteArraySet
 import javax.inject.Inject
@@ -35,7 +36,8 @@ import kotlinx.coroutines.withContext
 @Singleton
 class MediaStoreDataSource @Inject constructor(
     @ApplicationContext context: Context,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    @ImagesContentUri private val imagesContentUri: Uri
 ) {
     private val contentResolver: ContentResolver = context.contentResolver
 
@@ -45,7 +47,7 @@ class MediaStoreDataSource @Inject constructor(
     fun imagesPagingSource(): PagingSource<Int, MediaPhoto> {
         val source = MediaStorePagingSource(
             contentResolver = contentResolver,
-            contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            contentUri = imagesContentUri,
             projection = MediaStoreProjection.IMAGE_COLUMNS
         )
         activeSources.add(source)
@@ -66,7 +68,7 @@ class MediaStoreDataSource @Inject constructor(
      * 对 sortOrder 的校验。查不到返回 null(照片可能已被删除)。
      */
     suspend fun photoDetails(mediaId: Long): MediaPhoto? = withContext(ioDispatcher) {
-        val uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, mediaId)
+        val uri = ContentUris.withAppendedId(imagesContentUri, mediaId)
         val cursor = contentResolver.query(
             uri,
             MediaStoreProjection.PHOTO_DETAIL_COLUMNS,
@@ -89,7 +91,7 @@ class MediaStoreDataSource @Inject constructor(
         if (mediaIds.isEmpty()) return@withContext emptyList()
         val placeholders = mediaIds.joinToString(",") { "?" }
         val cursor = contentResolver.query(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            imagesContentUri,
             MediaStoreProjection.IMAGE_COLUMNS,
             /* selection = */
             "${MediaStore.Images.Media._ID} IN ($placeholders)",
@@ -102,7 +104,7 @@ class MediaStoreDataSource @Inject constructor(
         cursor.use { c ->
             buildList {
                 while (c.moveToNext()) {
-                    c.toMediaPhotoOrNull(imagesUri)?.let(::add)
+                    c.toMediaPhotoOrNull(imagesContentUri)?.let(::add)
                 }
             }
         }
@@ -121,7 +123,7 @@ class MediaStoreDataSource @Inject constructor(
             }
         }.also { observer ->
             contentResolver.registerContentObserver(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                imagesContentUri,
                 /* notifyForDescendants = */
                 true,
                 observer
@@ -133,10 +135,4 @@ class MediaStoreDataSource @Inject constructor(
     fun unregisterObserver(observer: ContentObserver) {
         contentResolver.unregisterContentObserver(observer)
     }
-
-    /** 测试用:暴露 ContentResolver 给 PagingSource 测试用例。 */
-    internal val resolver: ContentResolver get() = contentResolver
-
-    /** 测试用:固定的 images Uri。 */
-    internal val imagesUri: Uri get() = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 }
