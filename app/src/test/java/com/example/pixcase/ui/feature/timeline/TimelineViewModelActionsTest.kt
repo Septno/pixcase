@@ -275,4 +275,98 @@ class TimelineViewModelActionsTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    // ---- 加入相册(阶段 3) ----
+
+    @Test
+    fun `requestAddToAlbum emits picker with user albums`() = runTest(testDispatcher) {
+        coEvery { albumsRepository.observeUserAlbums() } returns flowOf(emptyList())
+        val vm = TimelineViewModel(appContext, repository, albumsRepository, tagsRepository, userPreferences)
+        vm.selectPhoto(1L)
+
+        vm.events.test {
+            vm.requestAddToAlbum()
+            assertTrue(awaitItem() is TimelineEvent.OpenAlbumPicker)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `addSelectionToAlbum delegates clears selection and reports count`() = runTest(testDispatcher) {
+        coEvery { albumsRepository.addPhotos(7L, setOf(4L, 5L), any()) } just runs
+        val vm = TimelineViewModel(appContext, repository, albumsRepository, tagsRepository, userPreferences)
+        vm.selectPhoto(4L)
+        vm.selectPhoto(5L)
+
+        vm.events.test {
+            vm.addSelectionToAlbum(7L)
+            assertEquals(TimelineEvent.Message(R.string.msg_added_to_album, 2), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        assertTrue(vm.selectedIds.value.isEmpty())
+    }
+
+    @Test
+    fun `createAlbumInDialog re-emits picker with refreshed albums`() = runTest(testDispatcher) {
+        coEvery { albumsRepository.observeUserAlbums() } returns flowOf(
+            listOf(
+                com.example.pixcase.data.db.entity.AlbumEntity(
+                    id = 7L, name = "Trip", coverMediaId = null, createdAt = 0L, updatedAt = 0L
+                )
+            )
+        )
+        val vm = TimelineViewModel(appContext, repository, albumsRepository, tagsRepository, userPreferences)
+        vm.selectPhoto(1L)
+
+        vm.events.test {
+            vm.createAlbumInDialog("Trip")
+            val event = awaitItem()
+            assertTrue(event is TimelineEvent.OpenAlbumPicker)
+            assertEquals(1, (event as TimelineEvent.OpenAlbumPicker).albums.size)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `applyTags with no diff is a no-op`() = runTest(testDispatcher) {
+        coEvery { tagsRepository.observeAll() } returns flowOf(emptyList())
+        coEvery { tagsRepository.rowsForMedia(setOf(1L)) } returns listOf(PhotoTagRow(1L, 5L))
+        val vm = TimelineViewModel(appContext, repository, albumsRepository, tagsRepository, userPreferences)
+        vm.selectPhoto(1L)
+
+        vm.events.test {
+            vm.requestTagSelection() // 快照交集 {5}
+            assertTrue(awaitItem() is TimelineEvent.OpenTagDialog)
+            cancelAndIgnoreRemainingEvents()
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.events.test {
+            vm.applyTags(setOf(5L)) // 与快照相同 → 无差量,无新事件
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        coVerify(exactly = 0) { tagsRepository.applyToMedia(any(), any()) }
+        coVerify(exactly = 0) { tagsRepository.removeFromMedia(any(), any()) }
+        assertEquals(setOf(1L), vm.selectedIds.value)
+    }
+
+    @Test
+    fun `createTagInDialog success re-emits dialog with refreshed tags`() = runTest(testDispatcher) {
+        coEvery { tagsRepository.create(any(), any(), any()) } returns 9L
+        coEvery { tagsRepository.observeAll() } returns flowOf(listOf(tag(9L)))
+        coEvery { tagsRepository.rowsForMedia(setOf(1L)) } returns emptyList()
+        val vm = TimelineViewModel(appContext, repository, albumsRepository, tagsRepository, userPreferences)
+        vm.selectPhoto(1L)
+
+        vm.events.test {
+            vm.createTagInDialog("新标签")
+            val event = awaitItem()
+            assertTrue(event is TimelineEvent.OpenTagDialog)
+            assertEquals(listOf(9L), (event as TimelineEvent.OpenTagDialog).tags.map { it.id })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }

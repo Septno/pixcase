@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -242,7 +243,9 @@ internal fun TagDialog(
     onCreateTag: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val checked = rememberSaveable(checkedTagIds) {
+    // SnapshotStateList 不可 Bundle 保存,不能走 rememberSaveable(真机验证过:组合即崩);
+    // 与对话框载荷同为短操作,转屏即关可接受。key 取 checkedTagIds:载荷刷新时勾选态重置。
+    val checked = remember(checkedTagIds) {
         mutableStateListOf<Long>().also { it.addAll(checkedTagIds) }
     }
     var newTagName by rememberSaveable { mutableStateOf("") }
