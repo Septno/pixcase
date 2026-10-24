@@ -12,6 +12,10 @@ interface FavoriteDao {
     @Query("SELECT mediaId FROM favorite ORDER BY addedAt DESC")
     fun observeAllIds(): Flow<List<Long>>
 
+    /** 全表读取(收藏反向同步:需按 addedAt 判断新近写入,避开与 createFavoriteRequest 的时序竞态)。 */
+    @Query("SELECT * FROM favorite")
+    suspend fun getAll(): List<FavoriteEntity>
+
     @Query("SELECT mediaId FROM favorite WHERE mediaId IN (:mediaIds)")
     fun observeFavoritesOf(mediaIds: Collection<Long>): Flow<List<Long>>
 

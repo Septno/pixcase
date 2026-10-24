@@ -43,4 +43,8 @@ interface AlbumPhotoDao {
     /** 清掉一批照片的所有相册关联(MediaStore 真删后的孤儿清理,计划陷阱 3)。 */
     @Query("DELETE FROM album_photo WHERE mediaId IN (:mediaIds)")
     suspend fun deleteByMediaIds(mediaIds: Collection<Long>)
+
+    /** 全表去重 mediaId(孤儿清扫兜底用)。 */
+    @Query("SELECT DISTINCT mediaId FROM album_photo")
+    suspend fun allMediaIds(): List<Long>
 }

@@ -18,6 +18,7 @@ import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
 import com.example.pixcase.data.mediastore.MediaStoreProjection
 import com.example.pixcase.data.mediastore.MediaSummary
 import com.example.pixcase.data.model.MediaPhoto
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -56,6 +57,9 @@ class PhotoRepository @Inject constructor(
     private val albumPhotoDao: AlbumPhotoDao,
     private val photoTagDao: PhotoTagDao
 ) {
+    /** 收藏反向同步的在途标记:onChange 连发时合并重复对齐(见 [reconcileFavorites])。 */
+    private val reconciling = AtomicBoolean(false)
+
     /**
      * 时间线数据流。收藏/隐藏元数据用 [flatMapLatest] 包住 Pager:任一变化时取消旧收集、
      * 重新收集冷 Pager 流,产出**全新的分页代**再叠加覆盖层并过滤隐藏。
@@ -212,6 +216,60 @@ class PhotoRepository @Inject constructor(
         clearLocalMetadataFor(mediaIds)
     }
 
+    /**
+     * 收藏反向同步(计划陷阱 2):把 Room 收藏覆盖层对齐到 MediaStore.IS_FAVORITE ——
+     * 系统相册取消收藏后,本 App 不再显示收藏。
+     *
+     * 竞态防护:App 内刚写入的收藏(addedAt 在宽限期内)不参与对齐 —— 30+ 的收藏同步走
+     * createFavoriteRequest 静默授权,MediaStore 端生效稍有延迟,立刻对齐会把刚打的收藏
+     * 误判为「已被系统取消」。错过的变更由下一次触发(ContentObserver / 进程启动)兜住。
+     * 并发触发用原子标记合并:onChange 常连发,排队的重复对齐没有意义。
+     *
+     * API 29 及以下没有 IS_FAVORITE 列,收藏只有 Room 一条数据源,无需对齐。
+     */
+    suspend fun reconcileFavorites(sdkInt: Int = Build.VERSION.SDK_INT, now: Long = System.currentTimeMillis()) {
+        if (!MediaStoreProjection.supportsQueryArgs(sdkInt)) return
+        if (!reconciling.compareAndSet(false, true)) return
+        try {
+            val remoteFavorites = dataSource.queryFavoriteIds()
+            val staleIds = favoriteDao.getAll()
+                .filter { it.mediaId !in remoteFavorites && it.addedAt < now - FAVORITE_SYNC_GRACE_MILLIS }
+                .map { it.mediaId }
+            if (staleIds.isNotEmpty()) favoriteDao.deleteAll(staleIds)
+        } finally {
+            reconciling.set(false)
+        }
+    }
+
+    /**
+     * 孤儿清扫([MediaStoreSyncWorker] 的执行体,计划陷阱 3 的兜底):删除路径内的即时清理
+     * 只覆盖「本 App 发起的删除」;库外删除(系统相册 / 文件管理器 / 连电脑)后,Room 的
+     * 收藏 / 隐藏 / 相册关联 / 标签关联会留下指向不存在照片的孤儿行,这里统一清扫。
+     *
+     * 幂等:每次都以「MediaStore 全量 id 集合」为真源做差,重跑不产生额外删除。
+     * 孤儿批量分块删除,避开 SQLite 绑定变量数上限(API 28 为 999)。
+     *
+     * @return 清掉的孤儿照片数
+     */
+    suspend fun sweepOrphans(): Int {
+        val knownIds = dataSource.queryAllImageIds()
+        val candidateIds = buildList {
+            addAll(favoriteDao.getAll().map { it.mediaId })
+            addAll(hiddenDao.allMediaIds())
+            addAll(albumPhotoDao.allMediaIds())
+            addAll(photoTagDao.allMediaIds())
+        }.distinct()
+        var removed = 0
+        for (chunk in candidateIds.filterNot { it in knownIds }.chunked(DELETE_CHUNK_SIZE)) {
+            favoriteDao.deleteAll(chunk)
+            hiddenDao.deleteAll(chunk)
+            albumPhotoDao.deleteByMediaIds(chunk)
+            photoTagDao.deleteByMediaIds(chunk)
+            removed += chunk.size
+        }
+        return removed
+    }
+
     private suspend fun clearLocalMetadataFor(mediaIds: Collection<Long>) {
         if (mediaIds.isEmpty()) return
         favoriteDao.deleteAll(mediaIds)
@@ -227,5 +285,11 @@ class PhotoRepository @Inject constructor(
 
         /** IS_FAVORITE / RELATIVE_PATH 筛选都不带绑定参数,共享同一空数组。 */
         val NO_SELECTION_ARGS = emptyArray<String>()
+
+        /** 收藏反向同步的宽限期:App 内刚写入的收藏,在这段时间内不参与对齐(竞态防护)。 */
+        const val FAVORITE_SYNC_GRACE_MILLIS = 30_000L
+
+        /** 孤儿批量删除的分块大小:SQLite 绑定变量数上限在 API 28 为 999,留出余量。 */
+        const val DELETE_CHUNK_SIZE = 500
     }
 }

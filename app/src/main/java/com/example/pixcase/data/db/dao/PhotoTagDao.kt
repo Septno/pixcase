@@ -37,4 +37,8 @@ interface PhotoTagDao {
     /** 删除标签时清掉它的全部关联(无外键级联,见计划陷阱 3)。 */
     @Query("DELETE FROM photo_tag WHERE tagId = :tagId")
     suspend fun deleteByTagId(tagId: Long)
+
+    /** 全表去重 mediaId(孤儿清扫兜底用)。 */
+    @Query("SELECT DISTINCT mediaId FROM photo_tag")
+    suspend fun allMediaIds(): List<Long>
 }

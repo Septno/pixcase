@@ -12,6 +12,10 @@ interface HiddenDao {
     @Query("SELECT mediaId FROM hidden_photo ORDER BY addedAt DESC")
     fun observeAllIds(): Flow<List<Long>>
 
+    /** 全表 mediaId(孤儿清扫兜底用)。 */
+    @Query("SELECT mediaId FROM hidden_photo")
+    suspend fun allMediaIds(): List<Long>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(hidden: HiddenEntity)
 

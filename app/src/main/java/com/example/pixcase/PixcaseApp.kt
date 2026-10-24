@@ -9,12 +9,17 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
+import com.example.pixcase.core.util.ApplicationScope
 import com.example.pixcase.data.mediastore.MediaStoreDataSource
 import com.example.pixcase.data.mediastore.MediaStoreThumbnailFetcherFactory
 import com.example.pixcase.data.mediastore.OriginalImageFetcherFactory
 import com.example.pixcase.data.mediastore.OriginalImageKeyer
+import com.example.pixcase.data.repository.PhotoRepository
+import com.example.pixcase.data.sync.MediaStoreSyncWorker
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import okio.Path.Companion.toOkioPath
 
 /**
@@ -40,6 +45,13 @@ class PixcaseApp :
     @Inject
     lateinit var mediaStoreDataSource: MediaStoreDataSource
 
+    @Inject
+    lateinit var photoRepository: PhotoRepository
+
+    @field:ApplicationScope
+    @Inject
+    lateinit var applicationScope: CoroutineScope
+
     /** [newImageLoader] 建好的 Coil 单例。Coil 未提供「已建则取、未建则返回 null」的访问方式。 */
     private var imageLoaderInstance: ImageLoader? = null
 
@@ -52,7 +64,20 @@ class PixcaseApp :
 
     override fun onCreate() {
         super.onCreate()
-        mediaStoreDataSource.observeImages()
+        // 库外变更(系统相册收藏 / 取消收藏等)后把 Room 收藏覆盖层对齐到 MediaStore,
+        // 与 Paging 失效同点触发;失败不影响浏览(计划陷阱 2)。
+        mediaStoreDataSource.observeImages(
+            onMediaChanged = {
+                applicationScope.launch { photoRepository.reconcileFavorites() }
+            }
+        )
+        // 每日兜底清扫库外删除留下的孤儿行(计划陷阱 3)
+        MediaStoreSyncWorker.schedule(this)
+        // 进程启动补一次:兜住进程死亡期间发生的库外删除与收藏变更
+        applicationScope.launch {
+            photoRepository.reconcileFavorites()
+            photoRepository.sweepOrphans()
+        }
     }
 
     /**

@@ -208,15 +208,54 @@ class MediaStoreDataSource @Inject constructor(
     }
 
     /**
+     * 全库图片 mediaId 集合(孤儿清扫用):只查 _ID 一列,行数与大库同量级,调用方须在
+     * 派发器上执行([queryAllImageIds] 内部已切 IO)。无排序无分页 —— MediaProvider 的
+     * sortOrder 校验只针对分页拼接,这里不涉及。
+     */
+    suspend fun queryAllImageIds(): Set<Long> = withContext(ioDispatcher) {
+        val cursor = contentResolver.query(
+            imagesContentUri,
+            arrayOf(MediaStore.Images.Media._ID),
+            /* selection = */
+            null,
+            /* selectionArgs = */
+            null,
+            /* sortOrder = */
+            null
+        ) ?: return@withContext emptySet()
+        cursor.use { c -> buildSet { while (c.moveToNext()) add(c.getLong(0)) } }
+    }
+
+    /**
+     * MediaStore 端收藏的 mediaId 集合(收藏反向同步用)。IS_FAVORITE 列 API 30 起才有,
+     * 更低版本没有调用方(PhotoRepository 按 API 分流);selection 单列条件不涉及
+     * sortOrder 校验,各版本都可走普通 query。
+     */
+    suspend fun queryFavoriteIds(): Set<Long> = withContext(ioDispatcher) {
+        val cursor = contentResolver.query(
+            imagesContentUri,
+            arrayOf(MediaStore.Images.Media._ID),
+            MediaStoreProjection.FAVORITE_SELECTION,
+            /* selectionArgs = */
+            null,
+            /* sortOrder = */
+            null
+        ) ?: return@withContext emptySet()
+        cursor.use { c -> buildSet { while (c.moveToNext()) add(c.getLong(0)) } }
+    }
+
+    /**
      * 注册 ContentObserver 到 MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
      * 返回 observer 实例,调用方持有以便在不需要时通过 [unregisterObserver] 解注册。
      * 一般在 Application.onCreate() 调用一次,进程生命周期内不必 unregister。
+     * [onMediaChanged] 在每次变更时额外回调(Paging 失效之外的数据对齐钩子)。
      */
-    fun observeImages(): ContentObserver {
+    fun observeImages(onMediaChanged: () -> Unit = {}): ContentObserver {
         val handler = Handler(Looper.getMainLooper())
         return object : ContentObserver(handler) {
             override fun onChange(selfChange: Boolean) {
                 invalidateAll()
+                onMediaChanged()
             }
         }.also { observer ->
             contentResolver.registerContentObserver(
