@@ -24,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -32,6 +33,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.example.pixcase.R
 import com.example.pixcase.ui.common.PlaceholderScreen
+import com.example.pixcase.ui.feature.albums.AlbumDetailScreen
+import com.example.pixcase.ui.feature.albums.AlbumsScreen
 import com.example.pixcase.ui.feature.timeline.TimelineRoute
 import com.example.pixcase.ui.feature.viewer.ViewerRoute
 
@@ -39,6 +42,12 @@ import com.example.pixcase.ui.feature.viewer.ViewerRoute
 private object Routes {
     const val TIMELINE = "timeline"
     const val ALBUMS = "albums"
+
+    /** 自定义相册详情页;只带相册 id,名字由详情页自己从 Room 反查(改名后不失效)。 */
+    const val ALBUM_DETAIL_ARG = "albumId"
+    const val ALBUM_DETAIL = "album/{$ALBUM_DETAIL_ARG}"
+
+    fun albumDetail(albumId: Long): String = "album/$albumId"
     const val SEARCH = "search"
     const val FAVORITES = "favorites"
     const val SETTINGS = "settings"
@@ -103,7 +112,7 @@ fun PixcaseNavGraph(navController: NavHostController) {
                     onPhotoClick = { photoId -> navController.navigate(Routes.viewer(photoId)) }
                 )
             }
-            composable(Routes.ALBUMS) { AlbumsPlaceholder() }
+            albumNavEntries(navController)
             composable(Routes.SEARCH) { SearchPlaceholder() }
             composable(Routes.FAVORITES) { FavoritesPlaceholder() }
             composable(Routes.SETTINGS) { SettingsPlaceholder() }
@@ -124,6 +133,27 @@ fun PixcaseNavGraph(navController: NavHostController) {
                 )
             }
         }
+    }
+}
+
+/** 相册 Tab 与自定义相册详情页;图片点击复用全局查看器路由。 */
+private fun NavGraphBuilder.albumNavEntries(navController: NavHostController) {
+    composable(Routes.ALBUMS) {
+        AlbumsScreen(
+            onAlbumClick = { albumId -> navController.navigate(Routes.albumDetail(albumId)) },
+            onSmartAlbumClick = { }
+        )
+    }
+    composable(
+        route = Routes.ALBUM_DETAIL,
+        arguments = listOf(
+            navArgument(Routes.ALBUM_DETAIL_ARG) { type = NavType.LongType }
+        )
+    ) {
+        AlbumDetailScreen(
+            onBack = { navController.popBackStack() },
+            onPhotoClick = { photoId -> navController.navigate(Routes.viewer(photoId)) }
+        )
     }
 }
 
@@ -149,12 +179,6 @@ private fun PixcaseBottomBar(navController: NavHostController) {
             )
         }
     }
-}
-
-// 各顶级路由的占位界面,后续阶段替换为真实屏幕。
-@Composable
-private fun AlbumsPlaceholder() {
-    PlaceholderScreen(Routes.ALBUMS)
 }
 
 @Composable

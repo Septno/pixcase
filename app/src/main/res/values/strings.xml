@@ -63,12 +63,24 @@
     <string name="msg_tag_invalid">Name can\'t be empty or too long</string>
     <string name="action_add_album">Album</string>
     <string name="album_picker_title">Add to album</string>
+    <string name="album_picker_new_hint">New album</string>
     <string name="msg_added_to_album">Added %1$d to album</string>
+    <string name="albums_create">Create album</string>
+    <string name="albums_rename">Rename</string>
+    <string name="albums_menu">Menu</string>
+    <string name="albums_smart_favorites">Favorites</string>
+    <string name="albums_smart_screenshots">Screenshots</string>
+    <string name="albums_delete_confirm_title">Delete album?</string>
+    <string name="albums_delete_confirm_text">Album “%1$s” and its photo links will be removed. The photos themselves stay in the device.</string>
     <string name="delete_confirm_title">Delete photos?</string>
     <string name="delete_confirm_ok">Delete</string>
     <plurals name="selection_count">
         <item quantity="one">%d selected</item>
         <item quantity="other">%d selected</item>
+    </plurals>
+    <plurals name="albums_count">
+        <item quantity="one">%d photo</item>
+        <item quantity="other">%d photos</item>
     </plurals>
     <plurals name="delete_confirm_text">
         <item quantity="one">This will permanently delete %d photo. This can\'t be undone.</item>

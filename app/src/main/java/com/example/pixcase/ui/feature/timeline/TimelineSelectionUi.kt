@@ -266,6 +266,7 @@ internal fun TagDialog(
                 NewTagInputRow(
                     value = newTagName,
                     onValueChange = { newTagName = it },
+                    label = stringResource(R.string.tag_dialog_new_hint),
                     onCreate = {
                         onCreateTag(newTagName)
                         newTagName = ""
@@ -304,7 +305,7 @@ private fun TagCheckRow(tag: TagEntity, checked: Boolean, onToggle: (Boolean) ->
 }
 
 @Composable
-private fun NewTagInputRow(value: String, onValueChange: (String) -> Unit, onCreate: () -> Unit) {
+private fun NewTagInputRow(value: String, onValueChange: (String) -> Unit, label: String, onCreate: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
@@ -312,7 +313,7 @@ private fun NewTagInputRow(value: String, onValueChange: (String) -> Unit, onCre
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            label = { Text(stringResource(R.string.tag_dialog_new_hint)) },
+            label = { Text(label) },
             singleLine = true,
             modifier = Modifier.weight(1f)
         )
@@ -354,6 +355,7 @@ internal fun AlbumPickerDialog(
                 NewTagInputRow(
                     value = newAlbumName,
                     onValueChange = { newAlbumName = it },
+                    label = stringResource(R.string.album_picker_new_hint),
                     onCreate = {
                         onCreate(newAlbumName)
                         newAlbumName = ""

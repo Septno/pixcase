@@ -30,6 +30,9 @@ class AlbumsRepository @Inject constructor(
 ) {
     fun observeUserAlbums(): Flow<List<AlbumEntity>> = albumDao.observeUserAlbums()
 
+    /** 相册条数的流(GROUP BY 一次查全)。 */
+    fun observeCounts() = albumPhotoDao.observeCountsByAlbum()
+
     fun observeMediaIds(albumId: Long): Flow<List<Long>> = albumPhotoDao.observeMediaIdsByAlbum(albumId)
 
     suspend fun album(albumId: Long): AlbumEntity? = albumDao.findById(albumId)

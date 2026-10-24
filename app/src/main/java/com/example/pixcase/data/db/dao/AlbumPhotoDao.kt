@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.example.pixcase.data.db.entity.AlbumCountRow
 import com.example.pixcase.data.db.entity.AlbumPhotoCrossRef
 import kotlinx.coroutines.flow.Flow
 
@@ -18,6 +19,10 @@ interface AlbumPhotoDao {
     /** 相册封面的自动来源:最近加入该相册的一张。 */
     @Query("SELECT mediaId FROM album_photo WHERE albumId = :albumId ORDER BY addedAt DESC LIMIT 1")
     suspend fun latestMediaIdInAlbum(albumId: Long): Long?
+
+    /** 相册条数一次查全(GROUP BY),相册列表页用。 */
+    @Query("SELECT albumId, COUNT(*) AS photoCount FROM album_photo GROUP BY albumId")
+    fun observeCountsByAlbum(): Flow<List<AlbumCountRow>>
 
     @Query("SELECT albumId FROM album_photo WHERE mediaId = :mediaId")
     suspend fun albumIdsOf(mediaId: Long): List<Long>
