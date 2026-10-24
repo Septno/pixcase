@@ -39,7 +39,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -258,6 +257,7 @@ private fun SmartAlbumCard(icon: ImageVector, label: String, summary: MediaSumma
     }
 }
 
+/** 相册内照片计数:走 plurals 资源(实现在 AlbumDetailScreen.kt,同包共用)。 */
 @Composable
 private fun AlbumCardView(album: AlbumCard, onClick: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -344,11 +344,4 @@ internal fun NameInputDialog(title: String, initialValue: String, onConfirm: (St
             }
         }
     )
-}
-
-/** 相册内照片计数:走 plurals 资源。 */
-@Composable
-private fun quantityCountLabel(count: Int): String {
-    val resources = LocalContext.current.resources
-    return resources.getQuantityString(R.plurals.albums_count, count, count)
 }

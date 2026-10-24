@@ -55,8 +55,8 @@ import com.example.pixcase.data.mediastore.isValidDisplayNameBase
 /**
  * 多选模式的顶栏:退出按钮 + 已选计数。
  *
- * 不用 TopAppBar:多选是时间线内的临时状态,自带 statusBars 内嵌的 Surface 即可,
- * 避免与 NavHost 外层 Scaffold 的系统栏内嵌叠加。
+ * 不用 TopAppBar:多选是页面内的临时状态,自带 statusBars 内嵌的 Surface 即可,
+ * 避免与 NavHost 外层 Scaffold 的系统栏内嵌叠加。时间线与相册详情页共用。
  */
 @Composable
 internal fun SelectionTopBar(count: Int, onClose: () -> Unit, modifier: Modifier = Modifier) {
@@ -160,8 +160,9 @@ internal fun SelectionActionBar(
     }
 }
 
+/** 多选操作栏的单个操作项(图标 + 文字),时间线与相册详情页共用。 */
 @Composable
-private fun SelectionActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
+internal fun SelectionActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     TextButton(onClick = onClick) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

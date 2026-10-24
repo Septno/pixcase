@@ -72,6 +72,11 @@
     <string name="albums_smart_screenshots">截图</string>
     <string name="albums_delete_confirm_title">删除相册?</string>
     <string name="albums_delete_confirm_text">将删除相册“%1$s”及其照片关联;照片本身仍保留在设备上。</string>
+    <string name="action_remove_from_album">移出</string>
+    <string name="action_set_cover">设为封面</string>
+    <string name="msg_removed_from_album">已移出 %1$d 张照片</string>
+    <string name="msg_cover_set">封面已更新</string>
+    <string name="albums_detail_empty">相册还没有照片</string>
     <string name="delete_confirm_title">删除这些照片?</string>
     <string name="delete_confirm_ok">删除</string>
     <plurals name="selection_count">
