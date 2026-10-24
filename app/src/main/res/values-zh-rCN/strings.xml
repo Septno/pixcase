@@ -25,6 +25,31 @@
     <string name="viewer_back">返回</string>
     <string name="viewer_load_failed">图片加载失败</string>
 
+    <!-- 时间线状态(1.2 收尾) -->
+    <string name="empty_timeline_title">没有照片</string>
+    <string name="empty_timeline_hint">设备上还没有可显示的照片。</string>
+
+    <!-- 多选与图像操作(阶段 2) -->
+    <string name="cd_selected">已选中</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_favorite">收藏</string>
+    <string name="action_unfavorite">取消收藏</string>
+    <string name="action_hide">隐藏</string>
+    <string name="action_delete">删除</string>
+    <string name="msg_favorited">已收藏 %1$d 张照片</string>
+    <string name="msg_unfavorited">已取消收藏 %1$d 张照片</string>
+    <string name="msg_hidden">已隐藏 %1$d 张照片</string>
+    <string name="msg_deleted">已删除 %1$d 张照片</string>
+    <string name="msg_delete_failed">删除失败</string>
+    <string name="delete_confirm_title">删除这些照片?</string>
+    <string name="delete_confirm_ok">删除</string>
+    <plurals name="selection_count">
+        <item quantity="other">已选 %d 项</item>
+    </plurals>
+    <plurals name="delete_confirm_text">
+        <item quantity="other">将永久删除 %d 张照片,此操作无法撤销。</item>
+    </plurals>
+
     <!--
       关于页面(about_*)字符串,阶段 1+ 实现 Settings → About 时再加。
     -->

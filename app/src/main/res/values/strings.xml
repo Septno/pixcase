@@ -25,6 +25,33 @@
     <string name="viewer_back">Back</string>
     <string name="viewer_load_failed">Couldn\'t load this image</string>
 
+    <!-- 时间线状态(1.2 收尾) -->
+    <string name="empty_timeline_title">No photos</string>
+    <string name="empty_timeline_hint">There are no photos to show on this device yet.</string>
+
+    <!-- 多选与图像操作(阶段 2) -->
+    <string name="cd_selected">Selected</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_favorite">Favorite</string>
+    <string name="action_unfavorite">Unfavorite</string>
+    <string name="action_hide">Hide</string>
+    <string name="action_delete">Delete</string>
+    <string name="msg_favorited">Added %1$d to favorites</string>
+    <string name="msg_unfavorited">Unfavorited %1$d</string>
+    <string name="msg_hidden">Hidden %1$d</string>
+    <string name="msg_deleted">Deleted %1$d</string>
+    <string name="msg_delete_failed">Couldn\'t delete photos</string>
+    <string name="delete_confirm_title">Delete photos?</string>
+    <string name="delete_confirm_ok">Delete</string>
+    <plurals name="selection_count">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <plurals name="delete_confirm_text">
+        <item quantity="one">This will permanently delete %d photo. This can\'t be undone.</item>
+        <item quantity="other">This will permanently delete %d photos. This can\'t be undone.</item>
+    </plurals>
+
     <!--
       About screen 字符串(about_version / about_copyright / about_oss_notice /
       about_check_update / about_open_source / about_privacy)放到阶段 1+ 实现

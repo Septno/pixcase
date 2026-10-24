@@ -1,6 +1,8 @@
 package com.example.pixcase.di
 
 import android.content.Context
+import android.net.Uri
+import android.provider.MediaStore
 import androidx.room.Room
 import com.example.pixcase.core.util.ApplicationScope
 import com.example.pixcase.core.util.DefaultDispatcher
@@ -55,4 +57,8 @@ object AppModule {
 
     @Provides
     fun provideHiddenDao(db: AppDatabase): HiddenDao = db.hiddenDao()
+
+    @Provides
+    @ImagesContentUri
+    fun provideImagesContentUri(): Uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 }

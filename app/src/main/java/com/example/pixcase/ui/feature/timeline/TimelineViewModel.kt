@@ -10,25 +10,35 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.insertSeparators
 import androidx.paging.map
+import com.example.pixcase.R
 import com.example.pixcase.core.permission.PermissionUiState
 import com.example.pixcase.core.permission.requiredMediaPermissions
+import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
 import com.example.pixcase.data.repository.PhotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import javax.inject.Inject
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * 时间线 ViewModel。
  *
- * 持有两类状态:
+ * 持有三类状态:
  * - permissionState:权限引导 UI 的状态机(Checking / Granted / NeedsRequest / PermanentlyDenied);
- * - timelineFlow:PhotoRepository.images() 转成 TimelineItem 并插入日期表头后在 viewModelScope 内 cachedIn。
+ * - timelineFlow:PhotoRepository.images() 转成 TimelineItem 并插入日期表头后在 viewModelScope 内 cachedIn;
+ * - selectedIds:多选模式的选中集合(非空即处于多选模式),及基于它派生的操作事件。
  *
  * 权限状态机约定(简化版,后续引入 Activity 上下文后再细化):
  * - 初始检查(missing 列表非空)默认走 NeedsRequest;
@@ -69,6 +79,134 @@ class TimelineViewModel @Inject constructor(
     /** 本次进程生命周期内是否已经触发过权限请求;true 后再 refresh 就把状态推到 PermanentlyDenied。 */
     private var hasRequestedBefore: Boolean = false
 
+    // ---- 多选模式 ----
+
+    private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** 选中集合;空集 = 不在多选模式。 */
+    val selectedIds: StateFlow<Set<Long>> = _selectedIds.asStateFlow()
+
+    /**
+     * 选中项的收藏覆盖情况:null = 未选中;true = 所选全部已收藏;false = 存在未收藏项。
+     * 操作栏的收藏按钮据此在「收藏 / 取消收藏」两种形态间切换。
+     */
+    val selectionAllFavorited: StateFlow<Boolean?> = _selectedIds
+        .flatMapLatest { ids ->
+            if (ids.isEmpty()) flowOf(null) else repository.observeFavoritesOf(ids).map { it.containsAll(ids) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)
+
+    private val _events = Channel<TimelineEvent>(Channel.BUFFERED)
+
+    /** 一次性事件(启动系统 PendingIntent / 确认框 / Snackbar),UI 收集后消费。 */
+    val events: Flow<TimelineEvent> = _events.receiveAsFlow()
+
+    /** 长按进入多选并选中该照片。 */
+    fun selectPhoto(photoId: Long) {
+        _selectedIds.value = _selectedIds.value + photoId
+    }
+
+    /** 多选模式下点击:切换选中;选空自动退出多选。 */
+    fun togglePhotoSelection(photoId: Long) {
+        val current = _selectedIds.value
+        _selectedIds.value = if (photoId in current) current - photoId else current + photoId
+    }
+
+    /** 退出多选。 */
+    fun clearSelection() {
+        _selectedIds.value = emptySet()
+    }
+
+    // ---- 图像操作(阶段 2) ----
+
+    /**
+     * 收藏 / 取消收藏当前选中项:任一未收藏 → 全部收藏;全部已收藏 → 全部取消。
+     * Room 先写,MediaStore.IS_FAVORITE 同步(API 30+)以事件交 UI 静默启动。
+     */
+    fun toggleFavoriteForSelection() {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val target = !repository.favoritesOf(ids).containsAll(ids)
+            val sender = repository.setFavorite(ids, target)
+            _events.send(
+                TimelineEvent.Message(
+                    if (target) R.string.msg_favorited else R.string.msg_unfavorited,
+                    ids.size
+                )
+            )
+            sender?.let { _events.send(TimelineEvent.LaunchFavoriteSync(it)) }
+        }
+    }
+
+    /** 隐藏选中项(App 内生效),随即退出多选。 */
+    fun hideSelection() {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            repository.hidePhotos(ids)
+            _selectedIds.value = emptySet()
+            _events.send(TimelineEvent.Message(R.string.msg_hidden, ids.size))
+        }
+    }
+
+    /**
+     * 删除选中项。API 30+ 直接向系统要删除确认(同意后进系统相册回收站);
+     * API 29 及以下没有系统回收站,先发 [TimelineEvent.ConfirmPermanentDelete] 让用户在
+     * App 内确认,确认后由 [deleteSelectionConfirmed] 执行永久删除。
+     */
+    fun deleteSelection() {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            viewModelScope.launch {
+                when (val outcome = repository.deletePhotos(ids)) {
+                    is MediaStorePhotoWriter.DeleteOutcome.NeedsConsent ->
+                        _events.send(TimelineEvent.LaunchDeleteConsent(outcome.sender))
+                    is MediaStorePhotoWriter.DeleteOutcome.Completed ->
+                        finishDirectDelete(outcome.deletedCount)
+                }
+            }
+        } else {
+            viewModelScope.launch { _events.send(TimelineEvent.ConfirmPermanentDelete) }
+        }
+    }
+
+    /** App 内确认框(API 29 及以下)点「删除」后调用:永久删除。 */
+    fun deleteSelectionConfirmed() {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val outcome = repository.deletePhotos(ids)
+            if (outcome is MediaStorePhotoWriter.DeleteOutcome.Completed) {
+                finishDirectDelete(outcome.deletedCount)
+            }
+        }
+    }
+
+    /** 系统确认框(API 30+)用户同意后调用:清理本地覆盖层并退出多选。 */
+    fun onSystemDeleteApproved() {
+        // 系统对话框期间 UI 被挡住,选择集不会再变,直接以当前选中集合为准。
+        val ids = _selectedIds.value
+        viewModelScope.launch {
+            repository.onSystemDeleteApproved(ids)
+            _selectedIds.value = emptySet()
+            if (ids.isNotEmpty()) _events.send(TimelineEvent.Message(R.string.msg_deleted, ids.size))
+        }
+    }
+
+    private suspend fun finishDirectDelete(deletedCount: Int) {
+        _selectedIds.value = emptySet()
+        _events.send(
+            TimelineEvent.Message(
+                if (deletedCount > 0) R.string.msg_deleted else R.string.msg_delete_failed,
+                deletedCount
+            )
+        )
+    }
+
+    // ---- 权限 ----
+
     init {
         refreshPermission()
     }
@@ -91,4 +229,8 @@ class TimelineViewModel @Inject constructor(
 
     private fun currentMissingPermissions(): List<String> = requiredMediaPermissions(Build.VERSION.SDK_INT)
         .filter { ContextCompat.checkSelfPermission(appContext, it) != PackageManager.PERMISSION_GRANTED }
+
+    private companion object {
+        const val STOP_TIMEOUT_MILLIS = 5_000L
+    }
 }

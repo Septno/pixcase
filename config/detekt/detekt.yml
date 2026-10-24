@@ -40,3 +40,11 @@ style:
 
 # 项目级 excludes(本项目暂不配置,需要时按 detekt pathFilter 语法添加)
 # excludes: '**/generated/**,**/build/**'
+# 阶段 2 起时间线 ViewModel 同时承载分页状态、多选状态与图像操作编排,函数数
+# 超出默认 11;18 的上限给后续阶段(重命名 / 移动等操作项)留出余量。
+complexity:
+  TooManyFunctions:
+    active: true
+    thresholdInClasses: 18
+    thresholdInFiles: 18
+    thresholdInInterfaces: 18

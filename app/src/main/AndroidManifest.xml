@@ -15,6 +15,13 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!--
+      媒体写入权限:删除 / IS_FAVORITE 同步在 API 29 及以下直接走 ContentResolver,
+      需要写权限;API 30+ 走 createDeleteRequest / createFavoriteRequest,只需读权限。
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
     <!-- API 33+ 通知(用于下载进度提示) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -37,7 +44,8 @@
         android:fullBackupContent="@xml/backup_rules"
         android:supportsRtl="true"
         android:enableOnBackInvokedCallback="true"
-        tools:targetApi="34">
+        tools:targetApi="34"
+        android:requestLegacyExternalStorage="true">
 
         <!--
           WorkManager on-demand 初始化:由 PixcaseApp.Configuration.Provider 提供配置,

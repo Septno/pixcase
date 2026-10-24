@@ -15,6 +15,12 @@ interface HiddenDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(hidden: HiddenEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(hidden: List<HiddenEntity>)
+
     @Query("DELETE FROM hidden_photo WHERE mediaId = :mediaId")
     suspend fun delete(mediaId: Long)
+
+    @Query("DELETE FROM hidden_photo WHERE mediaId IN (:mediaIds)")
+    suspend fun deleteAll(mediaIds: Collection<Long>)
 }
