@@ -48,4 +48,26 @@ class TimelinePhotoIndexTest {
 
         assertEquals(1, photosIn(items).indexOfFirst { it.id == 2L })
     }
+
+    @Test
+    fun `indexed photos keep order and carry paging index counting headers`() {
+        // 分页下标(查看器经 LazyPagingItems.get() 回读用)与照片序号是两套:表头占位计入前者。
+        val items = listOf(
+            header(2),
+            TimelineItem.Photo(photo(1L)),
+            TimelineItem.Photo(photo(2L)),
+            header(1),
+            TimelineItem.Photo(photo(3L))
+        )
+
+        val indexed = photosIndexedIn(items)
+
+        assertEquals(listOf(1L, 2L, 3L), indexed.map { it.photo.id })
+        assertEquals(listOf(1, 2, 4), indexed.map { it.pagingIndex })
+    }
+
+    @Test
+    fun `indexed photos alone yield nothing`() {
+        assertEquals(emptyList<IndexedPhoto>(), photosIndexedIn(listOf(header(1), header(2))))
+    }
 }
