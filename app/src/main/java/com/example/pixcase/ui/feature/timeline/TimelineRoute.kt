@@ -84,7 +84,8 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
         snackbarHostState = snackbarHostState,
         onRequestDeleteDialog = { dialogs.showDeleteDialog = true },
         onOpenRenameDialog = { baseName -> dialogs.renameBaseName = baseName },
-        onOpenTagDialog = { payload -> dialogs.tagDialogPayload = payload }
+        onOpenTagDialog = { payload -> dialogs.tagDialogPayload = payload },
+        onOpenAlbumPicker = { payload -> dialogs.albumPickerPayload = payload }
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -107,6 +108,7 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
                 allFavorited = allFavorited,
                 onToggleFavorite = viewModel::toggleFavoriteForSelection,
                 onAddTag = viewModel::requestTagSelection,
+                onAddToAlbum = viewModel::requestAddToAlbum,
                 onShare = viewModel::shareSelection,
                 onRename = viewModel::requestRename,
                 onSetWallpaper = viewModel::setWallpaperForSelection,
@@ -123,19 +125,22 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
         onDeleteConfirmed = viewModel::deleteSelectionConfirmed,
         onRenameConfirmed = viewModel::renameSelection,
         onTagConfirmed = viewModel::applyTags,
-        onTagCreate = viewModel::createTagInDialog
+        onTagCreate = viewModel::createTagInDialog,
+        onAlbumPicked = viewModel::addSelectionToAlbum,
+        onAlbumCreate = viewModel::createAlbumInDialog
     )
 }
 
 /**
- * 三种对话框(永久删除确认 / 重命名输入 / 打标签)的可见性状态。
- * 标签对话框载荷含实体列表,不走自动 Saveable:转屏即关,打标签是短操作可接受。
+ * 多选操作触发的四种对话框(永久删除确认 / 重命名 / 打标签 / 加入相册)的可见性状态。
+ * 标签与相册对话框载荷含实体列表,不走自动 Saveable:转屏即关,这些是短操作可接受。
  */
 @Stable
 private class TimelineDialogsState {
     var showDeleteDialog by mutableStateOf(false)
     var renameBaseName by mutableStateOf<String?>(null)
     var tagDialogPayload by mutableStateOf<TimelineEvent.OpenTagDialog?>(null)
+    var albumPickerPayload by mutableStateOf<TimelineEvent.OpenAlbumPicker?>(null)
 }
 
 /** 多选激活时显示顶栏(退出按钮 + 已选计数),否则不占任何空间。 */
@@ -156,6 +161,7 @@ private fun SelectionActionBarIfActive(
     allFavorited: Boolean?,
     onToggleFavorite: () -> Unit,
     onAddTag: () -> Unit,
+    onAddToAlbum: () -> Unit,
     onShare: () -> Unit,
     onRename: () -> Unit,
     onSetWallpaper: () -> Unit,
@@ -167,6 +173,7 @@ private fun SelectionActionBarIfActive(
             allFavorited = allFavorited,
             onToggleFavorite = onToggleFavorite,
             onAddTag = onAddTag,
+            onAddToAlbum = onAddToAlbum,
             onShare = onShare,
             onRename = onRename,
             onSetWallpaper = onSetWallpaper,
@@ -176,7 +183,7 @@ private fun SelectionActionBarIfActive(
     }
 }
 
-/** 确认框 / 输入框 / 打标签对话框集中渲染:均由一次性事件或操作栏触发。 */
+/** 确认框 / 输入框 / 打标签 / 加入相册对话框集中渲染,均由事件或操作栏触发。 */
 @Composable
 private fun TimelineDialogs(
     state: TimelineDialogsState,
@@ -184,7 +191,9 @@ private fun TimelineDialogs(
     onDeleteConfirmed: () -> Unit,
     onRenameConfirmed: (String) -> Unit,
     onTagConfirmed: (Set<Long>) -> Unit,
-    onTagCreate: (String) -> Unit
+    onTagCreate: (String) -> Unit,
+    onAlbumPicked: (Long) -> Unit,
+    onAlbumCreate: (String) -> Unit
 ) {
     // 对话框自行负责「确认 / 关闭 = 关掉自己」,回调只承载业务动作
     if (state.showDeleteDialog) {
@@ -217,6 +226,14 @@ private fun TimelineDialogs(
             },
             onCreateTag = onTagCreate,
             onDismiss = { state.tagDialogPayload = null }
+        )
+    }
+    state.albumPickerPayload?.let { payload ->
+        AlbumPickerDialog(
+            albums = payload.albums,
+            onPick = onAlbumPicked,
+            onCreate = onAlbumCreate,
+            onDismiss = { state.albumPickerPayload = null }
         )
     }
 }
@@ -257,7 +274,7 @@ private fun TimelineContent(
 
 /**
  * 一次性事件接线:启动系统 PendingIntent(删除确认 / 收藏同步 / 写授权)与普通 Intent
- * (分享 chooser / 壁纸裁剪)、弹出确认框与输入对话框、Snackbar 反馈。
+ * (分享 chooser / 壁纸裁剪)、弹出对话框、Snackbar 反馈。
  * 启动动作必须发生在 Activity 侧,故集中在 Composable 处理。
  */
 @Composable
@@ -266,7 +283,8 @@ private fun TimelineEventsEffect(
     snackbarHostState: SnackbarHostState,
     onRequestDeleteDialog: () -> Unit,
     onOpenRenameDialog: (String) -> Unit,
-    onOpenTagDialog: (TimelineEvent.OpenTagDialog) -> Unit
+    onOpenTagDialog: (TimelineEvent.OpenTagDialog) -> Unit,
+    onOpenAlbumPicker: (TimelineEvent.OpenAlbumPicker) -> Unit
 ) {
     val context = LocalContext.current
     // 多选激活时 BACK 只退出多选,不退出页面(时间线是起始目的地,默认 BACK 会直接结束 Activity)。
@@ -312,10 +330,34 @@ private fun TimelineEventsEffect(
                     }
                 is TimelineEvent.OpenRenameDialog -> onOpenRenameDialog(event.currentBaseName)
                 is TimelineEvent.OpenTagDialog -> onOpenTagDialog(event)
+                is TimelineEvent.OpenAlbumPicker -> onOpenAlbumPicker(event)
                 is TimelineEvent.Message ->
                     snackbarHostState.showSnackbar(context.getString(event.resId, event.count))
             }
         }
+    }
+}
+
+/** 多图分享:系统 chooser;设备上没有可接收的应用时提示。 */
+private suspend fun launchPhotoShare(context: Context, uris: List<Uri>, showErrorMessage: suspend (Int) -> Unit) {
+    val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+        type = "image/*"
+        putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    try {
+        context.startActivity(Intent.createChooser(shareIntent, null))
+    } catch (ignored: ActivityNotFoundException) {
+        showErrorMessage(R.string.msg_no_share_app)
+    }
+}
+
+/** 启动系统「裁剪并设为壁纸」;无处理组件时提示。 */
+private suspend fun launchWallpaperPicker(context: Context, intent: Intent, showErrorMessage: suspend (Int) -> Unit) {
+    try {
+        context.startActivity(intent)
+    } catch (ignored: ActivityNotFoundException) {
+        showErrorMessage(R.string.msg_wallpaper_failed)
     }
 }
 
@@ -345,27 +387,4 @@ private fun PermanentDeleteDialog(count: Int, onConfirm: () -> Unit, onDismiss: 
             }
         }
     )
-}
-
-/** 多图分享:系统 chooser;设备上没有可接收的应用时提示。 */
-private suspend fun launchPhotoShare(context: Context, uris: List<Uri>, showErrorMessage: suspend (Int) -> Unit) {
-    val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-        type = "image/*"
-        putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    try {
-        context.startActivity(Intent.createChooser(shareIntent, null))
-    } catch (ignored: ActivityNotFoundException) {
-        showErrorMessage(R.string.msg_no_share_app)
-    }
-}
-
-/** 启动系统「裁剪并设为壁纸」;无处理组件时提示。 */
-private suspend fun launchWallpaperPicker(context: Context, intent: Intent, showErrorMessage: suspend (Int) -> Unit) {
-    try {
-        context.startActivity(intent)
-    } catch (ignored: ActivityNotFoundException) {
-        showErrorMessage(R.string.msg_wallpaper_failed)
-    }
 }

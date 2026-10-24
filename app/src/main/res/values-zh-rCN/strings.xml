@@ -61,6 +61,9 @@
     <string name="msg_tags_applied">标签已更新</string>
     <string name="msg_tag_duplicate">标签已存在</string>
     <string name="msg_tag_invalid">名称不能为空或过长</string>
+    <string name="action_add_album">相册</string>
+    <string name="album_picker_title">加入相册</string>
+    <string name="msg_added_to_album">已加入相册(%1$d 张)</string>
     <string name="delete_confirm_title">删除这些照片?</string>
     <string name="delete_confirm_ok">删除</string>
     <plurals name="selection_count">

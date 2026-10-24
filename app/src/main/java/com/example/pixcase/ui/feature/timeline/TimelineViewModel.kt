@@ -20,6 +20,7 @@ import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
 import com.example.pixcase.data.mediastore.baseNameOf
 import com.example.pixcase.data.mediastore.buildDisplayName
 import com.example.pixcase.data.prefs.UserPreferencesDataSource
+import com.example.pixcase.data.repository.AlbumsRepository
 import com.example.pixcase.data.repository.PhotoRepository
 import com.example.pixcase.data.repository.TagsRepository
 import com.example.pixcase.data.repository.autoTagColor
@@ -62,6 +63,7 @@ import kotlinx.coroutines.launch
 class TimelineViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val repository: PhotoRepository,
+    private val albumsRepository: AlbumsRepository,
     private val tagsRepository: TagsRepository,
     private val userPreferences: UserPreferencesDataSource
 ) : ViewModel() {
@@ -382,6 +384,37 @@ class TimelineViewModel @Inject constructor(
      * 对话框确认:按勾选差量批量打 / 摘标签。UI 侧保证 finalCheckedIds 与打开时
      * 的交集类型一致,这里只做集合差。
      */
+    // ---- 加入相册(阶段 3) ----
+
+    /** 点「加入相册」:取全部自定义相册交 UI 弹选择对话框(可为空,对话框内支持新建)。 */
+    fun requestAddToAlbum() {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val albums = albumsRepository.observeUserAlbums().first()
+            _events.send(TimelineEvent.OpenAlbumPicker(albums))
+        }
+    }
+
+    /** 加入选中相册后退出多选并提示;相册无封面时由仓库自动补第一张。 */
+    fun addSelectionToAlbum(albumId: Long) {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            albumsRepository.addPhotos(albumId, ids, System.currentTimeMillis())
+            _selectedIds.value = emptySet()
+            _events.send(TimelineEvent.Message(R.string.msg_added_to_album, ids.size))
+        }
+    }
+
+    /** 对话框内新建相册;成功后重发 OpenAlbumPicker(内容原地刷新)。 */
+    fun createAlbumInDialog(rawName: String) {
+        viewModelScope.launch {
+            albumsRepository.createAlbum(rawName, System.currentTimeMillis())
+            _events.send(TimelineEvent.OpenAlbumPicker(albumsRepository.observeUserAlbums().first()))
+        }
+    }
+
     fun applyTags(finalCheckedIds: Set<Long>) {
         val ids = _selectedIds.value
         if (ids.isEmpty()) return

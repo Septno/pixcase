@@ -1,5 +1,6 @@
 package com.example.pixcase.ui.feature.timeline
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DriveFileRenameOutline
@@ -45,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.pixcase.R
+import com.example.pixcase.data.db.entity.AlbumEntity
 import com.example.pixcase.data.db.entity.TagEntity
 import com.example.pixcase.data.mediastore.isValidDisplayNameBase
 
@@ -96,6 +99,7 @@ internal fun SelectionActionBar(
     allFavorited: Boolean?,
     onToggleFavorite: () -> Unit,
     onAddTag: () -> Unit,
+    onAddToAlbum: () -> Unit,
     onShare: () -> Unit,
     onRename: () -> Unit,
     onSetWallpaper: () -> Unit,
@@ -120,6 +124,11 @@ internal fun SelectionActionBar(
                 icon = Icons.AutoMirrored.Outlined.Label,
                 label = stringResource(R.string.action_add_tag),
                 onClick = onAddTag
+            )
+            SelectionActionButton(
+                icon = Icons.Outlined.AddPhotoAlternate,
+                label = stringResource(R.string.action_add_album),
+                onClick = onAddToAlbum
             )
             SelectionActionButton(
                 icon = Icons.Outlined.Share,
@@ -311,4 +320,51 @@ private fun NewTagInputRow(value: String, onValueChange: (String) -> Unit, onCre
             Text(stringResource(R.string.tag_dialog_create))
         }
     }
+}
+
+/**
+ * 加入相册对话框:列出全部自定义相册(可为空),底部就地新建;
+ * 点相册即加入并关闭,差量语义由仓库保证(幂等 REPLACE)。
+ */
+@Composable
+internal fun AlbumPickerDialog(
+    albums: List<AlbumEntity>,
+    onPick: (Long) -> Unit,
+    onCreate: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var newAlbumName by rememberSaveable { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.album_picker_title)) },
+        text = {
+            Column {
+                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                    items(albums.size) { index ->
+                        Text(
+                            text = albums[index].name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPick(albums[index].id) }
+                                .padding(vertical = 12.dp, horizontal = 4.dp)
+                        )
+                    }
+                }
+                NewTagInputRow(
+                    value = newAlbumName,
+                    onValueChange = { newAlbumName = it },
+                    onCreate = {
+                        onCreate(newAlbumName)
+                        newAlbumName = ""
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
 }

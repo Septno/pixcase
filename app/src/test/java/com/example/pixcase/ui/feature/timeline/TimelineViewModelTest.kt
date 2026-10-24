@@ -6,6 +6,7 @@ import androidx.core.content.ContextCompat
 import androidx.paging.PagingData
 import com.example.pixcase.core.permission.PermissionUiState
 import com.example.pixcase.data.prefs.UserPreferencesDataSource
+import com.example.pixcase.data.repository.AlbumsRepository
 import com.example.pixcase.data.repository.PhotoRepository
 import com.example.pixcase.data.repository.TagsRepository
 import io.mockk.every
@@ -29,6 +30,7 @@ import org.junit.Test
 class TimelineViewModelTest {
     private val appContext = mockk<Context>(relaxed = true)
     private val repository = mockk<PhotoRepository>(relaxed = true)
+    private val albumsRepository = mockk<AlbumsRepository>(relaxed = true)
     private val tagsRepository = mockk<TagsRepository>(relaxed = true)
     private val userPreferences = mockk<UserPreferencesDataSource>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
@@ -51,7 +53,7 @@ class TimelineViewModelTest {
     fun `init with all permissions granted sets Granted state`() = runTest(testDispatcher) {
         every { ContextCompat.checkSelfPermission(any(), any()) } returns PackageManager.PERMISSION_GRANTED
 
-        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, albumsRepository, tagsRepository, userPreferences)
 
         assertEquals(PermissionUiState.Granted, vm.permissionState.value)
     }
@@ -60,7 +62,7 @@ class TimelineViewModelTest {
     fun `init with missing permissions defaults to NeedsRequest`() = runTest(testDispatcher) {
         every { ContextCompat.checkSelfPermission(any(), any()) } returns PackageManager.PERMISSION_DENIED
 
-        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, albumsRepository, tagsRepository, userPreferences)
 
         val state = vm.permissionState.value
         assertTrue("expected NeedsRequest, got $state", state is PermissionUiState.NeedsRequest)
@@ -70,7 +72,7 @@ class TimelineViewModelTest {
     fun `onRequestResult with still missing transitions to PermanentlyDenied`() = runTest(testDispatcher) {
         every { ContextCompat.checkSelfPermission(any(), any()) } returns PackageManager.PERMISSION_DENIED
 
-        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, albumsRepository, tagsRepository, userPreferences)
         vm.onRequestResult(emptyMap())
 
         val state = vm.permissionState.value
@@ -82,7 +84,7 @@ class TimelineViewModelTest {
         // 初始 granted
         every { ContextCompat.checkSelfPermission(any(), any()) } returns PackageManager.PERMISSION_GRANTED
 
-        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, albumsRepository, tagsRepository, userPreferences)
         // 即便模拟首次请求回调,缺失列表为空时也是 Granted
         vm.onRequestResult(emptyMap())
 

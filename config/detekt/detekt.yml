@@ -41,11 +41,11 @@ style:
                    # 项目级禁用该规则,后续阶段收敛技术债后再单独启用
 
 # 阶段 2 起时间线 ViewModel 同时承载分页状态、多选状态与图像操作编排,函数数
-# 超出默认 11;26 的上限覆盖阶段 2/3 操作项与标签编排。
+# 超出默认 11;30 的上限覆盖阶段 2/3 全部操作编排。
 complexity:
   TooManyFunctions:
     active: true
-    thresholdInClasses: 26
+    thresholdInClasses: 30
     thresholdInFiles: 22
     thresholdInInterfaces: 22
     thresholdInObjects: 22

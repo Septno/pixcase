@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.IntentSender
 import android.net.Uri
 import androidx.annotation.StringRes
+import com.example.pixcase.data.db.entity.AlbumEntity
 import com.example.pixcase.data.db.entity.TagEntity
 
 /**
@@ -40,6 +41,9 @@ sealed interface TimelineEvent {
      * 的标签交集(勾选框初始态);确认时把对话框的最终勾选集与它做差量。
      */
     data class OpenTagDialog(val tags: List<TagEntity>, val checkedTagIds: Set<Long>) : TimelineEvent
+
+    /** 加入相册对话框就绪:[albums] 为全部自定义相册(可为空,对话框内支持就地新建)。 */
+    data class OpenAlbumPicker(val albums: List<AlbumEntity>) : TimelineEvent
 
     /** 操作结果反馈,UI 用 Snackbar 展示。 */
     data class Message(@StringRes val resId: Int, val count: Int = 0) : TimelineEvent
