@@ -112,4 +112,33 @@ class MediaStorePagingSourceLoadTest {
             sortOrder.captured.contains("LIMIT ${MediaStorePagingSource.MAX_LOAD_SIZE} OFFSET 0")
         )
     }
+
+    @Test
+    fun `load passes selection and args to legacy query`() = runTest {
+        val selection = slot<String>()
+        val selectionArgs = slot<Array<String>>()
+        every { resolver.query(any(), any(), capture(selection), capture(selectionArgs), any()) } returns
+            emptyCursor()
+        val source = MediaStorePagingSource(
+            contentResolver = resolver,
+            contentUri = uri,
+            projection = MediaStoreProjection.IMAGE_COLUMNS,
+            selection = MediaStoreProjection.FAVORITE_SELECTION,
+            selectionArgs = emptyArray()
+        )
+
+        source.load(LoadParams.Refresh(key = 0, loadSize = 100, placeholdersEnabled = false))
+
+        assertEquals(MediaStoreProjection.FAVORITE_SELECTION, selection.captured)
+        assertTrue(selectionArgs.captured.isEmpty())
+    }
+
+    @Test
+    fun `load without selection keeps null selection`() = runTest {
+        // selection 参数非 null 时该 stub 不命中,mockk 会抛 no answer 使测试失败
+        every { resolver.query(any(), any(), isNull(), any(), any()) } returns emptyCursor()
+        val source = MediaStorePagingSource(resolver, uri, MediaStoreProjection.IMAGE_COLUMNS)
+
+        source.load(LoadParams.Refresh(key = 0, loadSize = 100, placeholdersEnabled = false))
+    }
 }
