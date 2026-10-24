@@ -23,12 +23,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # commit message 校验需要 origin/main..HEAD 的完整提交历史
+          fetch-depth: 0
 
       - name: Set up JDK ${{ matrix.jdk }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ matrix.jdk }}
           distribution: temurin
+
+      - name: Commit message 校验
+        run: |
+          git fetch origin main --quiet
+          scripts/check-commit-messages.sh origin/main..HEAD
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4

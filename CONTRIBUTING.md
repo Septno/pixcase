@@ -16,20 +16,32 @@
 
 ## Commit 规范
 
+提交信息使用 [Conventional Commits](https://www.conventionalcommits.org/) 前缀 + 中文标题:
+
 ```
-<中文标题,≤70 字符,祈使句>
+<type>: <中文标题,祈使句,含前缀 ≤ 70 字符>
 
 <正文,可选,补充动机与影响范围>
 ```
 
+type 白名单:`feat` / `fix` / `docs` / `refactor` / `test` / `chore` / `build` / `ci` / `perf` / `style`。
+
 参考示例:
 
 ```
-时间线页支持加载骨架屏
+feat: 时间线页支持加载骨架屏
 
 首屏渲染前显示 8 个占位卡片,降低用户感知等待。
 图片到位后 fadeIn 替换。
 ```
+
+**本地校验**:本仓库通过 `core.hooksPath` 指向 `scripts/hooks/` 执行 commit-msg 校验,clone 后执行一次即可启用:
+
+```
+git config core.hooksPath scripts/hooks
+```
+
+CI 同样会校验推送范围内的全部提交信息(规则文件 `scripts/commit-msg-check.py`,两处共用)。
 
 ## 报告 Bug
 

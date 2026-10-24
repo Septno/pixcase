@@ -1,0 +1,17 @@
+#!/bin/sh
+# commit-msg 校验:规范见 CONTRIBUTING.md「Commit 规范」。
+# 规则本体在 scripts/commit-msg-check.py(hook 与 CI 共用同一份)。
+# python 不可用时跳过校验并提示,避免环境缺失把提交彻底堵死。
+msg_file="$1"
+title=$(grep -v '^#' "$msg_file" | grep -v '^[[:space:]]*$' | head -n 1)
+
+case "$title" in
+  "Merge "*|"fixup! "*|"Revert "*) exit 0 ;;
+esac
+
+if ! command -v python >/dev/null 2>&1; then
+  echo "commit-msg: 未找到 python,跳过提交信息校验" >&2
+  exit 0
+fi
+
+exec python "$(dirname "$0")/../commit-msg-check.py" "$title"
