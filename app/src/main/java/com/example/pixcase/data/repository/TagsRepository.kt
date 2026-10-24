@@ -6,6 +6,7 @@ import com.example.pixcase.data.db.entity.PhotoTagCrossRef
 import com.example.pixcase.data.db.entity.TagEntity
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 import kotlinx.coroutines.flow.Flow
 
 /** 标签名非法(空白 / 超长)时返回 null,调用方决定如何提示。 */
@@ -13,6 +14,20 @@ internal fun normalizeTagName(raw: String, maxLength: Int = 30): String? {
     val trimmed = raw.trim()
     return if (trimmed.isEmpty() || trimmed.length > maxLength) null else trimmed
 }
+
+@Suppress("MagicNumber") // 色板常量本身即字面量
+private val TAG_COLOR_PALETTE = listOf(
+    0xFF6750A4.toInt(),
+    0xFF386A20.toInt(),
+    0xFFB3261E.toInt(),
+    0xFF7D5260.toInt(),
+    0xFF00639B.toInt(),
+    0xFF715147.toInt()
+)
+
+/** 新建标签的自动配色:按名字哈希从固定色板取色,同名永远同色。 */
+internal fun autoTagColor(name: String): Int =
+    TAG_COLOR_PALETTE[abs(name.hashCode()) % TAG_COLOR_PALETTE.size] or 0xFF000000.toInt()
 
 /**
  * 标签仓库:标签 CRUD 与「打标签」。

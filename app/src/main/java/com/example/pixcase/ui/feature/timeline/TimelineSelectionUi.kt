@@ -6,10 +6,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
@@ -19,6 +24,7 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -28,6 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -38,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.pixcase.R
+import com.example.pixcase.data.db.entity.TagEntity
 import com.example.pixcase.data.mediastore.isValidDisplayNameBase
 
 /**
@@ -87,6 +95,7 @@ internal fun quantityCountLabel(count: Int): String {
 internal fun SelectionActionBar(
     allFavorited: Boolean?,
     onToggleFavorite: () -> Unit,
+    onAddTag: () -> Unit,
     onShare: () -> Unit,
     onRename: () -> Unit,
     onSetWallpaper: () -> Unit,
@@ -106,6 +115,11 @@ internal fun SelectionActionBar(
                 icon = if (favorited) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                 label = stringResource(if (favorited) R.string.action_unfavorite else R.string.action_favorite),
                 onClick = onToggleFavorite
+            )
+            SelectionActionButton(
+                icon = Icons.AutoMirrored.Outlined.Label,
+                label = stringResource(R.string.action_add_tag),
+                onClick = onAddTag
             )
             SelectionActionButton(
                 icon = Icons.Outlined.Share,
@@ -204,4 +218,97 @@ internal fun RenameDialog(currentBaseName: String, onConfirm: (String) -> Unit, 
             }
         }
     )
+}
+
+/**
+ * 打标签对话框:列出全部标签,勾选语义是「该标签同时打在所有选中照片上」,
+ * 初始勾选由 [checkedTagIds] 传入(交集);底部可就地新建标签。
+ * 最终勾选集通过 [onConfirm] 回传,差量计算在 ViewModel。
+ */
+@Composable
+internal fun TagDialog(
+    tags: List<TagEntity>,
+    checkedTagIds: Set<Long>,
+    onConfirm: (Set<Long>) -> Unit,
+    onCreateTag: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val checked = rememberSaveable(checkedTagIds) {
+        mutableStateListOf<Long>().also { it.addAll(checkedTagIds) }
+    }
+    var newTagName by rememberSaveable { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.tag_dialog_title)) },
+        text = {
+            Column {
+                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                    items(tags.size) { index ->
+                        TagCheckRow(
+                            tag = tags[index],
+                            checked = tags[index].id in checked,
+                            onToggle = { isChecked ->
+                                if (isChecked) checked.add(tags[index].id) else checked.remove(tags[index].id)
+                            }
+                        )
+                    }
+                }
+                NewTagInputRow(
+                    value = newTagName,
+                    onValueChange = { newTagName = it },
+                    onCreate = {
+                        onCreateTag(newTagName)
+                        newTagName = ""
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(checked.toSet()) }) {
+                Text(stringResource(R.string.action_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun TagCheckRow(tag: TagEntity, checked: Boolean, onToggle: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, onValueChange = onToggle)
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Text(
+            text = tag.name,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(start = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun NewTagInputRow(value: String, onValueChange: (String) -> Unit, onCreate: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(stringResource(R.string.tag_dialog_new_hint)) },
+            singleLine = true,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onCreate) {
+            Text(stringResource(R.string.tag_dialog_create))
+        }
+    }
 }

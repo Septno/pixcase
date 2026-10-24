@@ -15,11 +15,15 @@ import androidx.paging.map
 import com.example.pixcase.R
 import com.example.pixcase.core.permission.PermissionUiState
 import com.example.pixcase.core.permission.requiredMediaPermissions
+import com.example.pixcase.data.db.entity.TagEntity
 import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
 import com.example.pixcase.data.mediastore.baseNameOf
 import com.example.pixcase.data.mediastore.buildDisplayName
 import com.example.pixcase.data.prefs.UserPreferencesDataSource
 import com.example.pixcase.data.repository.PhotoRepository
+import com.example.pixcase.data.repository.TagsRepository
+import com.example.pixcase.data.repository.autoTagColor
+import com.example.pixcase.data.repository.normalizeTagName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
@@ -30,6 +34,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -57,6 +62,7 @@ import kotlinx.coroutines.launch
 class TimelineViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val repository: PhotoRepository,
+    private val tagsRepository: TagsRepository,
     private val userPreferences: UserPreferencesDataSource
 ) : ViewModel() {
 
@@ -331,12 +337,80 @@ class TimelineViewModel @Inject constructor(
         pendingRename = null
     }
 
+    /** 打标签对话框的数据:全部标签 + 选中照片的标签交集。 */
+    private suspend fun tagDialogData(ids: Set<Long>): Pair<List<TagEntity>, Set<Long>> {
+        val tags = tagsRepository.observeAll().first()
+        val rows = tagsRepository.rowsForMedia(ids)
+        val tagIdsPerPhoto: Map<Long, Set<Long>> = rows.groupBy({ it.mediaId }, { it.tagId })
+            .mapValues { (_, tagIds) -> tagIds.toSet() }
+        val intersection = ids.asSequence()
+            .map { id -> tagIdsPerPhoto[id] ?: emptySet() }
+            .fold(null as Set<Long>?) { acc, set -> acc?.intersect(set) ?: set }
+            ?.toSet()
+            ?: emptySet()
+        return tags to intersection
+    }
+
     private suspend fun finishRename(renamed: Boolean) {
         pendingRename = null
         _selectedIds.value = emptySet()
         _events.send(
             TimelineEvent.Message(if (renamed) R.string.msg_renamed else R.string.msg_rename_failed)
         )
+    }
+
+    // ---- 打标签(阶段 3) ----
+
+    /** 对话框打开时刻的「全部选中都带着」的标签交集;确认时与此做差量。 */
+    private var checkedTagIdsAtDialogOpen: Set<Long> = emptySet()
+
+    /**
+     * 点「添加标签」:取全部标签与选中照片的标签关联,算出交集后交 UI 弹对话框。
+     * 勾选框初始只勾交集 —— 对话框里的勾选语义是「该标签同时打在所有选中照片上」。
+     */
+    fun requestTagSelection() {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val (tags, intersection) = tagDialogData(ids)
+            checkedTagIdsAtDialogOpen = intersection
+            _events.send(TimelineEvent.OpenTagDialog(tags, intersection))
+        }
+    }
+
+    /**
+     * 对话框确认:按勾选差量批量打 / 摘标签。UI 侧保证 finalCheckedIds 与打开时
+     * 的交集类型一致,这里只做集合差。
+     */
+    fun applyTags(finalCheckedIds: Set<Long>) {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        val added = finalCheckedIds - checkedTagIdsAtDialogOpen
+        val removed = checkedTagIdsAtDialogOpen - finalCheckedIds
+        if (added.isEmpty() && removed.isEmpty()) return
+        viewModelScope.launch {
+            added.forEach { tagId -> tagsRepository.applyToMedia(tagId, ids) }
+            removed.forEach { tagId -> tagsRepository.removeFromMedia(tagId, ids) }
+            _selectedIds.value = emptySet()
+            _events.send(TimelineEvent.Message(R.string.msg_tags_applied))
+        }
+    }
+
+    /** 对话框内新建标签;成功后重发 OpenTagDialog(对话框内容原地刷新,不打断输入)。 */
+    fun createTagInDialog(rawName: String) {
+        viewModelScope.launch {
+            val newId = tagsRepository.create(rawName, autoTagColor(rawName.trim()), System.currentTimeMillis())
+            when {
+                newId == null && normalizeTagName(rawName) == null ->
+                    _events.send(TimelineEvent.Message(R.string.msg_tag_invalid))
+                newId == null -> _events.send(TimelineEvent.Message(R.string.msg_tag_duplicate))
+                else -> {
+                    val (tags, intersection) = tagDialogData(_selectedIds.value)
+                    checkedTagIdsAtDialogOpen = intersection
+                    _events.send(TimelineEvent.OpenTagDialog(tags, intersection))
+                }
+            }
+        }
     }
 
     // ---- 权限 ----

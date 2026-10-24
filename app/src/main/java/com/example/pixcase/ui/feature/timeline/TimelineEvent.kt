@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.IntentSender
 import android.net.Uri
 import androidx.annotation.StringRes
+import com.example.pixcase.data.db.entity.TagEntity
 
 /**
  * 时间线的一次性事件,由 ViewModel 发出、UI 收集后消费。
@@ -33,6 +34,12 @@ sealed interface TimelineEvent {
 
     /** 重命名对话框就绪:携带当前文件名拆出的主体名(不含扩展名)作为预填值。 */
     data class OpenRenameDialog(val currentBaseName: String) : TimelineEvent
+
+    /**
+     * 打标签对话框就绪:[tags] 为全部标签,[checkedTagIds] 是「同时打在所有选中照片上」
+     * 的标签交集(勾选框初始态);确认时把对话框的最终勾选集与它做差量。
+     */
+    data class OpenTagDialog(val tags: List<TagEntity>, val checkedTagIds: Set<Long>) : TimelineEvent
 
     /** 操作结果反馈,UI 用 Snackbar 展示。 */
     data class Message(@StringRes val resId: Int, val count: Int = 0) : TimelineEvent

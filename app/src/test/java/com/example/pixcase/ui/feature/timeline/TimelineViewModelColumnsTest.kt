@@ -6,6 +6,7 @@ import androidx.core.content.ContextCompat
 import androidx.paging.PagingData
 import com.example.pixcase.data.prefs.UserPreferencesDataSource
 import com.example.pixcase.data.repository.PhotoRepository
+import com.example.pixcase.data.repository.TagsRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -31,6 +32,7 @@ import org.junit.Test
 class TimelineViewModelColumnsTest {
     private val appContext = mockk<Context>(relaxed = true)
     private val repository = mockk<PhotoRepository>(relaxed = true)
+    private val tagsRepository = mockk<TagsRepository>(relaxed = true)
     private val userPreferences = mockk<UserPreferencesDataSource>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
@@ -53,14 +55,14 @@ class TimelineViewModelColumnsTest {
     fun `columnCount initializes from persisted preference`() = runTest(testDispatcher) {
         every { userPreferences.gridColumns() } returns 5
 
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
 
         assertEquals(5, vm.columnCount.value)
     }
 
     @Test
     fun `setColumnCount updates state and persists`() = runTest(testDispatcher) {
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
 
         vm.setColumnCount(4)
 
@@ -70,7 +72,7 @@ class TimelineViewModelColumnsTest {
 
     @Test
     fun `setColumnCount with unchanged value skips persistence`() = runTest(testDispatcher) {
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
 
         vm.setColumnCount(3)
 
@@ -79,7 +81,7 @@ class TimelineViewModelColumnsTest {
 
     @Test
     fun `setColumnCount clamps to absolute bounds before persisting`() = runTest(testDispatcher) {
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
 
         vm.setColumnCount(-1)
 

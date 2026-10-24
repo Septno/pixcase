@@ -53,6 +53,14 @@
     <string name="rename_input_label">名称</string>
     <string name="rename_error_empty">名称不能为空</string>
     <string name="rename_error_invalid">包含非法字符:\ / : * ? &quot; &lt; &gt; |</string>
+    <string name="action_add_tag">标签</string>
+    <string name="action_confirm">确定</string>
+    <string name="tag_dialog_title">打标签</string>
+    <string name="tag_dialog_new_hint">新建标签</string>
+    <string name="tag_dialog_create">创建</string>
+    <string name="msg_tags_applied">标签已更新</string>
+    <string name="msg_tag_duplicate">标签已存在</string>
+    <string name="msg_tag_invalid">名称不能为空或过长</string>
     <string name="delete_confirm_title">删除这些照片?</string>
     <string name="delete_confirm_ok">删除</string>
     <plurals name="selection_count">

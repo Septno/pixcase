@@ -9,14 +9,20 @@ import androidx.core.content.ContextCompat
 import androidx.paging.PagingData
 import app.cash.turbine.test
 import com.example.pixcase.R
+import com.example.pixcase.data.db.entity.PhotoTagRow
+import com.example.pixcase.data.db.entity.TagEntity
 import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
 import com.example.pixcase.data.model.MediaPhoto
 import com.example.pixcase.data.prefs.UserPreferencesDataSource
 import com.example.pixcase.data.repository.PhotoRepository
+import com.example.pixcase.data.repository.TagsRepository
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.runs
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,6 +47,7 @@ import org.junit.Test
 class TimelineViewModelActionsTest {
     private val appContext = mockk<Context>(relaxed = true)
     private val repository = mockk<PhotoRepository>(relaxed = true)
+    private val tagsRepository = mockk<TagsRepository>(relaxed = true)
     private val userPreferences = mockk<UserPreferencesDataSource>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
@@ -71,7 +78,7 @@ class TimelineViewModelActionsTest {
     @Test
     fun `shareSelection emits uris of the selected photos`() = runTest(testDispatcher) {
         coEvery { repository.photosByIds(setOf(1L, 2L)) } returns listOf(mediaPhoto(1L), mediaPhoto(2L))
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
         vm.selectPhoto(1L)
         vm.selectPhoto(2L)
 
@@ -87,7 +94,7 @@ class TimelineViewModelActionsTest {
     @Test
     fun `setWallpaperForSelection requires exactly one photo`() = runTest(testDispatcher) {
         coEvery { repository.photosByIds(setOf(1L, 2L)) } returns listOf(mediaPhoto(1L), mediaPhoto(2L))
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
         vm.selectPhoto(1L)
         vm.selectPhoto(2L)
 
@@ -110,7 +117,7 @@ class TimelineViewModelActionsTest {
         every { WallpaperManager.getInstance(any()) } returns mockk {
             every { getCropAndSetWallpaperIntent(any()) } returns pickerIntent
         }
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
         vm.selectPhoto(1L)
 
         vm.events.test {
@@ -123,7 +130,7 @@ class TimelineViewModelActionsTest {
     @Test
     fun `requestRename with one photo opens dialog with base name`() = runTest(testDispatcher) {
         coEvery { repository.photosByIds(setOf(7L)) } returns listOf(mediaPhoto(7L))
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
         vm.selectPhoto(7L)
 
         vm.events.test {
@@ -136,7 +143,7 @@ class TimelineViewModelActionsTest {
     @Test
     fun `requestRename with multiple photos asks for single selection`() = runTest(testDispatcher) {
         coEvery { repository.photosByIds(setOf(1L, 2L)) } returns listOf(mediaPhoto(1L), mediaPhoto(2L))
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
         vm.selectPhoto(1L)
         vm.selectPhoto(2L)
 
@@ -152,7 +159,7 @@ class TimelineViewModelActionsTest {
         coEvery { repository.photosByIds(setOf(7L)) } returns listOf(mediaPhoto(7L))
         coEvery { repository.renamePhoto(7L, "holiday.jpg") } returns
             MediaStorePhotoWriter.RenameOutcome.Done(true)
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
         vm.selectPhoto(7L)
 
         vm.events.test {
@@ -170,7 +177,7 @@ class TimelineViewModelActionsTest {
         coEvery { repository.renamePhoto(7L, "holiday.jpg") } returns
             MediaStorePhotoWriter.RenameOutcome.NeedsConsent(mockk()) andThen
             MediaStorePhotoWriter.RenameOutcome.Done(true)
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
         vm.selectPhoto(7L)
 
         vm.events.test {
@@ -191,7 +198,7 @@ class TimelineViewModelActionsTest {
         coEvery { repository.photosByIds(setOf(7L)) } returns listOf(mediaPhoto(7L))
         coEvery { repository.renamePhoto(7L, "holiday.jpg") } returns
             MediaStorePhotoWriter.RenameOutcome.NeedsConsent(mockk())
-        val vm = TimelineViewModel(appContext, repository, userPreferences)
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
         vm.selectPhoto(7L)
 
         vm.events.test {
@@ -204,6 +211,65 @@ class TimelineViewModelActionsTest {
         vm.events.test {
             vm.onWriteConsentApproved()
             expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // ---- 打标签(阶段 3) ----
+
+    private fun tag(id: Long) = TagEntity(id = id, name = "标签$id", colorArgb = 0, createdAt = 0L)
+
+    @Test
+    fun `requestTagSelection checks only the intersection across selected photos`() = runTest(testDispatcher) {
+        // 照片 1 带标签 {3, 5},照片 2 带标签 {5}:交集只有 5
+        coEvery { tagsRepository.observeAll() } returns flowOf(listOf(tag(3), tag(5)))
+        coEvery { tagsRepository.rowsForMedia(setOf(1L, 2L)) } returns
+            listOf(PhotoTagRow(1L, 3L), PhotoTagRow(1L, 5L), PhotoTagRow(2L, 5L))
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
+        vm.selectPhoto(1L)
+        vm.selectPhoto(2L)
+
+        vm.events.test {
+            vm.requestTagSelection()
+            val event = awaitItem()
+            assertTrue(event is TimelineEvent.OpenTagDialog)
+            assertEquals(setOf(5L), (event as TimelineEvent.OpenTagDialog).checkedTagIds)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `applyTags diffs against the intersection snapshot`() = runTest(testDispatcher) {
+        coEvery { tagsRepository.observeAll() } returns flowOf(listOf(tag(3), tag(5)))
+        coEvery { tagsRepository.rowsForMedia(setOf(1L, 2L)) } returns
+            listOf(PhotoTagRow(1L, 3L), PhotoTagRow(1L, 5L), PhotoTagRow(2L, 5L))
+        coEvery { tagsRepository.applyToMedia(any(), any()) } just runs
+        coEvery { tagsRepository.removeFromMedia(any(), any()) } just runs
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
+        vm.selectPhoto(1L)
+        vm.selectPhoto(2L)
+
+        vm.requestTagSelection() // 快照交集 {5}
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.applyTags(setOf(3L)) // 勾上 3;取消 5(不再勾选)→ 新增 3、移除 5
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { tagsRepository.applyToMedia(3L, setOf(1L, 2L)) }
+        coVerify(exactly = 1) { tagsRepository.removeFromMedia(5L, setOf(1L, 2L)) }
+        assertTrue(vm.selectedIds.value.isEmpty())
+    }
+
+    @Test
+    fun `createTagInDialog reports duplicate names without emitting dialog`() = runTest(testDispatcher) {
+        coEvery { tagsRepository.create("已有", any(), any()) } returns null
+        coEvery { tagsRepository.observeAll() } returns flowOf(emptyList())
+        coEvery { tagsRepository.rowsForMedia(setOf(1L)) } returns emptyList()
+        val vm = TimelineViewModel(appContext, repository, tagsRepository, userPreferences)
+        vm.selectPhoto(1L)
+
+        vm.events.test {
+            vm.createTagInDialog("已有")
+            assertEquals(TimelineEvent.Message(R.string.msg_tag_duplicate), awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
     }

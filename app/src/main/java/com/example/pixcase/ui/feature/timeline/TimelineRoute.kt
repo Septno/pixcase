@@ -2,7 +2,9 @@ package com.example.pixcase.ui.feature.timeline
 
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -19,10 +21,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,13 +78,13 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
     val allFavorited by viewModel.selectionAllFavorited.collectAsStateWithLifecycle()
     val columnCount by viewModel.columnCount.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
-    var renameBaseName by rememberSaveable { mutableStateOf<String?>(null) }
+    val dialogs = remember { TimelineDialogsState() }
     TimelineEventsEffect(
         viewModel = viewModel,
         snackbarHostState = snackbarHostState,
-        onRequestDeleteDialog = { showDeleteDialog = true },
-        onOpenRenameDialog = { baseName -> renameBaseName = baseName }
+        onRequestDeleteDialog = { dialogs.showDeleteDialog = true },
+        onOpenRenameDialog = { baseName -> dialogs.renameBaseName = baseName },
+        onOpenTagDialog = { payload -> dialogs.tagDialogPayload = payload }
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -104,6 +106,7 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
                 selectedIds = selectedIds,
                 allFavorited = allFavorited,
                 onToggleFavorite = viewModel::toggleFavoriteForSelection,
+                onAddTag = viewModel::requestTagSelection,
                 onShare = viewModel::shareSelection,
                 onRename = viewModel::requestRename,
                 onSetWallpaper = viewModel::setWallpaperForSelection,
@@ -115,20 +118,24 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
     }
 
     TimelineDialogs(
-        showDeleteDialog = showDeleteDialog,
+        state = dialogs,
         deleteCount = selectedIds.size,
-        onDeleteConfirmed = {
-            showDeleteDialog = false
-            viewModel.deleteSelectionConfirmed()
-        },
-        onDismissDelete = { showDeleteDialog = false },
-        renameBaseName = renameBaseName,
-        onRenameConfirmed = { input ->
-            renameBaseName = null
-            viewModel.renameSelection(input)
-        },
-        onDismissRename = { renameBaseName = null }
+        onDeleteConfirmed = viewModel::deleteSelectionConfirmed,
+        onRenameConfirmed = viewModel::renameSelection,
+        onTagConfirmed = viewModel::applyTags,
+        onTagCreate = viewModel::createTagInDialog
     )
+}
+
+/**
+ * 三种对话框(永久删除确认 / 重命名输入 / 打标签)的可见性状态。
+ * 标签对话框载荷含实体列表,不走自动 Saveable:转屏即关,打标签是短操作可接受。
+ */
+@Stable
+private class TimelineDialogsState {
+    var showDeleteDialog by mutableStateOf(false)
+    var renameBaseName by mutableStateOf<String?>(null)
+    var tagDialogPayload by mutableStateOf<TimelineEvent.OpenTagDialog?>(null)
 }
 
 /** 多选激活时显示顶栏(退出按钮 + 已选计数),否则不占任何空间。 */
@@ -148,6 +155,7 @@ private fun SelectionActionBarIfActive(
     selectedIds: Set<Long>,
     allFavorited: Boolean?,
     onToggleFavorite: () -> Unit,
+    onAddTag: () -> Unit,
     onShare: () -> Unit,
     onRename: () -> Unit,
     onSetWallpaper: () -> Unit,
@@ -158,6 +166,7 @@ private fun SelectionActionBarIfActive(
         SelectionActionBar(
             allFavorited = allFavorited,
             onToggleFavorite = onToggleFavorite,
+            onAddTag = onAddTag,
             onShare = onShare,
             onRename = onRename,
             onSetWallpaper = onSetWallpaper,
@@ -167,29 +176,47 @@ private fun SelectionActionBarIfActive(
     }
 }
 
-/** 删除确认框与重命名对话框集中渲染:二者互斥,均由一次性事件或按钮触发。 */
+/** 确认框 / 输入框 / 打标签对话框集中渲染:均由一次性事件或操作栏触发。 */
 @Composable
 private fun TimelineDialogs(
-    showDeleteDialog: Boolean,
+    state: TimelineDialogsState,
     deleteCount: Int,
     onDeleteConfirmed: () -> Unit,
-    onDismissDelete: () -> Unit,
-    renameBaseName: String?,
     onRenameConfirmed: (String) -> Unit,
-    onDismissRename: () -> Unit
+    onTagConfirmed: (Set<Long>) -> Unit,
+    onTagCreate: (String) -> Unit
 ) {
-    if (showDeleteDialog) {
+    // 对话框自行负责「确认 / 关闭 = 关掉自己」,回调只承载业务动作
+    if (state.showDeleteDialog) {
         PermanentDeleteDialog(
             count = deleteCount,
-            onConfirm = onDeleteConfirmed,
-            onDismiss = onDismissDelete
+            onConfirm = {
+                state.showDeleteDialog = false
+                onDeleteConfirmed()
+            },
+            onDismiss = { state.showDeleteDialog = false }
         )
     }
-    renameBaseName?.let { baseName ->
+    state.renameBaseName?.let { baseName ->
         RenameDialog(
             currentBaseName = baseName,
-            onConfirm = onRenameConfirmed,
-            onDismiss = onDismissRename
+            onConfirm = { input ->
+                state.renameBaseName = null
+                onRenameConfirmed(input)
+            },
+            onDismiss = { state.renameBaseName = null }
+        )
+    }
+    state.tagDialogPayload?.let { payload ->
+        TagDialog(
+            tags = payload.tags,
+            checkedTagIds = payload.checkedTagIds,
+            onConfirm = { finalChecked ->
+                state.tagDialogPayload = null
+                onTagConfirmed(finalChecked)
+            },
+            onCreateTag = onTagCreate,
+            onDismiss = { state.tagDialogPayload = null }
         )
     }
 }
@@ -238,7 +265,8 @@ private fun TimelineEventsEffect(
     viewModel: TimelineViewModel,
     snackbarHostState: SnackbarHostState,
     onRequestDeleteDialog: () -> Unit,
-    onOpenRenameDialog: (String) -> Unit
+    onOpenRenameDialog: (String) -> Unit,
+    onOpenTagDialog: (TimelineEvent.OpenTagDialog) -> Unit
 ) {
     val context = LocalContext.current
     // 多选激活时 BACK 只退出多选,不退出页面(时间线是起始目的地,默认 BACK 会直接结束 Activity)。
@@ -274,24 +302,16 @@ private fun TimelineEventsEffect(
                 is TimelineEvent.LaunchFavoriteSync ->
                     favoriteSyncLauncher.launch(IntentSenderRequest.Builder(event.sender).build())
                 is TimelineEvent.ConfirmPermanentDelete -> onRequestDeleteDialog()
-                is TimelineEvent.SharePhotos -> {
-                    val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                        type = "image/*"
-                        putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(event.uris))
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                is TimelineEvent.SharePhotos ->
+                    launchPhotoShare(context, event.uris) { messageRes ->
+                        snackbarHostState.showSnackbar(context.getString(messageRes))
                     }
-                    try {
-                        context.startActivity(Intent.createChooser(shareIntent, null))
-                    } catch (ignored: ActivityNotFoundException) {
-                        snackbarHostState.showSnackbar(context.getString(R.string.msg_no_share_app))
+                is TimelineEvent.LaunchSetWallpaper ->
+                    launchWallpaperPicker(context, event.intent) { messageRes ->
+                        snackbarHostState.showSnackbar(context.getString(messageRes))
                     }
-                }
-                is TimelineEvent.LaunchSetWallpaper -> try {
-                    context.startActivity(event.intent)
-                } catch (ignored: ActivityNotFoundException) {
-                    snackbarHostState.showSnackbar(context.getString(R.string.msg_wallpaper_failed))
-                }
                 is TimelineEvent.OpenRenameDialog -> onOpenRenameDialog(event.currentBaseName)
+                is TimelineEvent.OpenTagDialog -> onOpenTagDialog(event)
                 is TimelineEvent.Message ->
                     snackbarHostState.showSnackbar(context.getString(event.resId, event.count))
             }
@@ -325,4 +345,27 @@ private fun PermanentDeleteDialog(count: Int, onConfirm: () -> Unit, onDismiss: 
             }
         }
     )
+}
+
+/** 多图分享:系统 chooser;设备上没有可接收的应用时提示。 */
+private suspend fun launchPhotoShare(context: Context, uris: List<Uri>, showErrorMessage: suspend (Int) -> Unit) {
+    val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+        type = "image/*"
+        putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    try {
+        context.startActivity(Intent.createChooser(shareIntent, null))
+    } catch (ignored: ActivityNotFoundException) {
+        showErrorMessage(R.string.msg_no_share_app)
+    }
+}
+
+/** 启动系统「裁剪并设为壁纸」;无处理组件时提示。 */
+private suspend fun launchWallpaperPicker(context: Context, intent: Intent, showErrorMessage: suspend (Int) -> Unit) {
+    try {
+        context.startActivity(intent)
+    } catch (ignored: ActivityNotFoundException) {
+        showErrorMessage(R.string.msg_wallpaper_failed)
+    }
 }

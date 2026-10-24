@@ -53,6 +53,14 @@
     <string name="rename_input_label">Name</string>
     <string name="rename_error_empty">Name can\'t be empty</string>
     <string name="rename_error_invalid">Contains invalid characters: \ / : * ? &quot; &lt; &gt; |</string>
+    <string name="action_add_tag">Tag</string>
+    <string name="action_confirm">OK</string>
+    <string name="tag_dialog_title">Tag photos</string>
+    <string name="tag_dialog_new_hint">New tag</string>
+    <string name="tag_dialog_create">Create</string>
+    <string name="msg_tags_applied">Tags updated</string>
+    <string name="msg_tag_duplicate">Tag already exists</string>
+    <string name="msg_tag_invalid">Name can\'t be empty or too long</string>
     <string name="delete_confirm_title">Delete photos?</string>
     <string name="delete_confirm_ok">Delete</string>
     <plurals name="selection_count">
