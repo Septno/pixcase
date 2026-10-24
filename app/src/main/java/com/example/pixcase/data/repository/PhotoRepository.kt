@@ -17,20 +17,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map as mapFlow
 
 /**
  * 照片仓库:读 = MediaStore Paging(数据源) + Room 收藏/隐藏覆盖层;写 = Room 真源 + MediaStore 尽力同步。
  *
- * images() 的 combine 把 PagingData 与 favorite / hidden 媒体 ID 集合同步,用 copy 覆盖
- * isFavorite / isHidden,随后**过滤掉隐藏照片** —— hidden_photo 是 App 内隐私层的唯一真源。
- * 过滤发生在分页加载之后:整页全被隐藏时会出现「看着没加载满」的窗口,换来的是不必在
- * MediaStore 查询里塞 Room 条件(两者无法 join);隐藏条目通常稀疏,代价可接受。
- *
- * 写操作约定:Room 先写(UI 状态即时生效),MediaStore(IS_FAVORITE / 删除)随后尽力同步;
- * 删除走 [MediaStorePhotoWriter],完成后清理对应照片的 Room 覆盖层,避免 MediaStore 真删后
- * 留下孤儿行(计划陷阱 3)。
+ * 覆盖层的流式叠加见 [images];写操作约定:Room 先写(UI 状态即时生效),
+ * MediaStore(IS_FAVORITE / 删除)随后尽力同步;删除走 [MediaStorePhotoWriter],完成后清理
+ * 对应照片的 Room 覆盖层,避免 MediaStore 真删后留下孤儿行(计划陷阱 3)。
  *
  * images() 返回冷流:每次收集都新建 Pager,缓存由消费方(ViewModel)用 cachedIn 管理。
  * 仓库层不做 cachedIn —— 用 ApplicationScope 缓存会把已加载的照片窗口钉在进程生命周期上。
@@ -42,30 +39,43 @@ class PhotoRepository @Inject constructor(
     private val favoriteDao: FavoriteDao,
     private val hiddenDao: HiddenDao
 ) {
+    /**
+     * 时间线数据流。收藏/隐藏元数据用 [flatMapLatest] 包住 Pager:任一变化时取消旧收集、
+     * 重新收集冷 Pager 流,产出**全新的分页代**再叠加覆盖层并过滤隐藏。
+     *
+     * 不能用 combine 直接包住同一个 PagingData 实例:元数据变化会让 combine 重跑变换、
+     * 对同一个底层分页代二次收集,cachedIn 里抛
+     * `IllegalStateException: Attempt to collect twice from pageEventFlow`(真机收藏时验证过)。
+     *
+     * 过滤发生在分页加载之后:整页全被隐藏时会出现「看着没加载满」的窗口,换来的是不必在
+     * MediaStore 查询里塞 Room 条件(两者无法 join);隐藏条目通常稀疏,代价可接受。
+     */
     fun images(): Flow<PagingData<MediaPhoto>> = combine(
-        Pager(
-            config = PagingConfig(
-                pageSize = PAGE_SIZE,
-                prefetchDistance = PREFETCH_DISTANCE,
-                initialLoadSize = PAGE_SIZE,
-                enablePlaceholders = false
-            ),
-            pagingSourceFactory = { dataSource.imagesPagingSource() }
-        ).flow,
         favoriteDao.observeAllIds(),
         hiddenDao.observeAllIds()
-    ) { paging, favIds, hiddenIds ->
-        val favSet = favIds.toHashSet()
-        val hiddenSet = hiddenIds.toHashSet()
-        paging
-            .map { p ->
-                p.copy(
-                    isFavorite = p.id in favSet,
-                    isHidden = p.id in hiddenSet
-                )
+    ) { favIds, hiddenIds -> favIds to hiddenIds }
+        .distinctUntilChanged()
+        .flatMapLatest { (favIds, hiddenIds) ->
+            Pager(
+                config = PagingConfig(
+                    pageSize = PAGE_SIZE,
+                    prefetchDistance = PREFETCH_DISTANCE,
+                    initialLoadSize = PAGE_SIZE,
+                    enablePlaceholders = false
+                ),
+                pagingSourceFactory = { dataSource.imagesPagingSource() }
+            ).flow.mapFlow { paging ->
+                val favSet = favIds.toHashSet()
+                paging
+                    .map { p ->
+                        p.copy(
+                            isFavorite = p.id in favSet,
+                            isHidden = p.id in hiddenIds
+                        )
+                    }
+                    .filter { !it.isHidden }
             }
-            .filter { !it.isHidden }
-    }
+        }
 
     /** 选中项里已收藏的媒体 ID 集合;空集合不触达 DAO(空 IN 子句 SQL 会报错)。 */
     suspend fun favoritesOf(mediaIds: Collection<Long>): Set<Long> =
