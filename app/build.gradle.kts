@@ -76,6 +76,17 @@ android {
         }
     }
 
+    // Migration 测试:MigrationTestHelper 从 assets 读 schema JSON,与 ksp schemaLocation 同源
+    sourceSets.getByName("test") {
+        assets.srcDir("$projectDir/schemas")
+    }
+    testOptions {
+        unitTests {
+            // Robolectric 需要挂上项目资源
+            isIncludeAndroidResources = true
+        }
+    }
+
     // 把 lint-baseline 放在模块根,跑一次 ./gradlew lint 后自动生成
     lint {
         abortOnError = true
@@ -177,6 +188,8 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.room.testing)
 
     // Instrumented 测试
     androidTestImplementation(libs.androidx.test.ext.junit)

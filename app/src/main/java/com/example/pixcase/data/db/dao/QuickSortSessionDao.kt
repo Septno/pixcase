@@ -13,6 +13,10 @@ interface QuickSortSessionDao {
     @Query("SELECT * FROM quick_sort_session WHERE albumId = :albumId")
     fun observeByAlbum(albumId: Long): Flow<QuickSortSessionEntity?>
 
+    /** 一次性读取(决策落库时推进计数用)。 */
+    @Query("SELECT * FROM quick_sort_session WHERE albumId = :albumId")
+    suspend fun getByAlbum(albumId: Long): QuickSortSessionEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(session: QuickSortSessionEntity)
 

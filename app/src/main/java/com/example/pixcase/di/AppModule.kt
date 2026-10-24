@@ -8,11 +8,15 @@ import com.example.pixcase.core.util.ApplicationScope
 import com.example.pixcase.core.util.DefaultDispatcher
 import com.example.pixcase.core.util.IoDispatcher
 import com.example.pixcase.data.db.AppDatabase
+import com.example.pixcase.data.db.AppDatabaseMigrations
 import com.example.pixcase.data.db.dao.AlbumDao
 import com.example.pixcase.data.db.dao.AlbumPhotoDao
 import com.example.pixcase.data.db.dao.FavoriteDao
 import com.example.pixcase.data.db.dao.HiddenDao
 import com.example.pixcase.data.db.dao.PhotoTagDao
+import com.example.pixcase.data.db.dao.QuickSortDecisionDao
+import com.example.pixcase.data.db.dao.QuickSortSessionDao
+import com.example.pixcase.data.db.dao.QuickSortSessionTargetDao
 import com.example.pixcase.data.db.dao.TagDao
 import dagger.Module
 import dagger.Provides
@@ -39,7 +43,8 @@ object AppModule {
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.DATABASE_NAME)
-            // 当前 schema = 1,无 Migration;后续 schema 变更按 §2.3 配 Migration_x_y
+            // 迁移按版本逐个挂载(计划 §2.3);严禁 fallbackToDestructiveMigration
+            .addMigrations(AppDatabaseMigrations.MIGRATION_1_2)
             .build()
 
     @Provides
@@ -73,6 +78,15 @@ object AppModule {
 
     @Provides
     fun providePhotoTagDao(db: AppDatabase): PhotoTagDao = db.photoTagDao()
+
+    @Provides
+    fun provideQuickSortSessionDao(db: AppDatabase): QuickSortSessionDao = db.quickSortSessionDao()
+
+    @Provides
+    fun provideQuickSortSessionTargetDao(db: AppDatabase): QuickSortSessionTargetDao = db.quickSortSessionTargetDao()
+
+    @Provides
+    fun provideQuickSortDecisionDao(db: AppDatabase): QuickSortDecisionDao = db.quickSortDecisionDao()
 
     @Provides
     @ImagesContentUri

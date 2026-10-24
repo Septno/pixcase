@@ -25,6 +25,9 @@ room = "2.6.1"
 
 # Paging
 paging = "3.3.4"
+
+# 单元测试里的 Android 运行时(Migration 测试用 Robolectric)
+robolectric = "4.14.1"
 pagingCompose = "3.3.4"
 
 # 图片加载
@@ -119,6 +122,8 @@ android-desugar = { group = "com.android.tools", name = "desugar_jdk_libs", vers
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExt" }
 androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4", version.ref = "composeUiTestJunit4" }

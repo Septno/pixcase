@@ -12,6 +12,7 @@ import com.example.pixcase.data.db.dao.ImageMarkDao
 import com.example.pixcase.data.db.dao.PhotoTagDao
 import com.example.pixcase.data.db.dao.QuickSortDecisionDao
 import com.example.pixcase.data.db.dao.QuickSortSessionDao
+import com.example.pixcase.data.db.dao.QuickSortSessionTargetDao
 import com.example.pixcase.data.db.dao.SearchHistoryDao
 import com.example.pixcase.data.db.dao.TagDao
 import com.example.pixcase.data.db.entity.AlbumEntity
@@ -24,6 +25,7 @@ import com.example.pixcase.data.db.entity.ImageMarkEntity
 import com.example.pixcase.data.db.entity.PhotoTagCrossRef
 import com.example.pixcase.data.db.entity.QuickSortDecisionEntity
 import com.example.pixcase.data.db.entity.QuickSortSessionEntity
+import com.example.pixcase.data.db.entity.QuickSortSessionTargetEntity
 import com.example.pixcase.data.db.entity.SearchHistoryEntity
 import com.example.pixcase.data.db.entity.TagEntity
 
@@ -32,8 +34,9 @@ import com.example.pixcase.data.db.entity.TagEntity
  *
  * 阶段 0:所有表占位建立,迁移策略 (`Migration_x_y`) 在每次 schema 变更时按计划 § 2.3 补充。
  * 严禁 `fallbackToDestructiveMigration()` ——会清空用户元数据。
+ * version 2(陷阱 5):quick_sort_session_target 独立表,见 [AppDatabaseMigrations.MIGRATION_1_2]。
  */
-@Suppress("TooManyFunctions") // 12 个 dao 访问器是必要的(对应 12 张 Entity 表),后续按 Repository 维度拆分 Module 时再考虑下沉
+@Suppress("TooManyFunctions") // 13 个 dao 访问器是必要的(对应 13 张 Entity 表),后续按 Repository 维度拆分 Module 时再考虑下沉
 @Database(
     entities = [
         AlbumEntity::class,
@@ -44,12 +47,13 @@ import com.example.pixcase.data.db.entity.TagEntity
         HiddenEntity::class,
         SearchHistoryEntity::class,
         QuickSortSessionEntity::class,
+        QuickSortSessionTargetEntity::class,
         QuickSortDecisionEntity::class,
         ImageCategoryEntity::class,
         ImageCategoryCrossRef::class,
         ImageMarkEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -68,6 +72,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun searchHistoryDao(): SearchHistoryDao
 
     abstract fun quickSortSessionDao(): QuickSortSessionDao
+
+    abstract fun quickSortSessionTargetDao(): QuickSortSessionTargetDao
 
     abstract fun quickSortDecisionDao(): QuickSortDecisionDao
 
