@@ -1,6 +1,7 @@
 package com.example.pixcase.ui.feature.timeline
 
 import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -74,6 +75,9 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
     val columnCount by viewModel.columnCount.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+
+    // 多选激活时 BACK 只退出多选,不退出页面(时间线是起始目的地,默认 BACK 会直接结束 Activity)。
+    BackHandler(enabled = selectedIds.isNotEmpty()) { viewModel.clearSelection() }
 
     TimelineEventsEffect(viewModel = viewModel, snackbarHostState = snackbarHostState) {
         showDeleteDialog = true

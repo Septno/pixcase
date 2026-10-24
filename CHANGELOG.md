@@ -24,6 +24,8 @@
 
 ### Fixed
 
+- 多选模式下按系统返回键现在退出多选,而不是直接退出页面(时间线是起始目的地,默认 BACK 行为会结束 Activity)
+
 - 收藏 / 隐藏时必崩(`IllegalStateException: Attempt to collect twice from pageEventFlow`):`images()` 原先 combine 直接包住同一个 PagingData 实例,元数据变化会对其二次收集。改为 `flatMapLatest` 包住冷 Pager 流,元数据变化时产出全新分页代(真机模拟器 API 28 复现并验证修复)
 
 - MediaStore 分页在 API 30+ 上必然失败:原先把 `LIMIT` / `OFFSET` 拼进 `sortOrder`,而 MediaProvider 会校验该字符串并抛 `IllegalArgumentException: Invalid token LIMIT`,导致时间线始终为空。改为 API 30 以上走 Bundle 查询参数(`QUERY_ARG_LIMIT` / `QUERY_ARG_OFFSET`)
