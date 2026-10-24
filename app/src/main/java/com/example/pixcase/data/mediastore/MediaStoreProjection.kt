@@ -73,11 +73,46 @@ internal object MediaStoreProjection {
     /** API 30 以下的 sortOrder(把分页拼进去);loadSize / offset 均为 Int 无注入风险。 */
     fun legacySortOrder(loadSize: Int, offset: Int): String = "$SORT_ORDER LIMIT $loadSize OFFSET $offset"
 
-    /** API 30+ 的查询参数:排序走 SQL 排序子句,分页走 QUERY_ARG_LIMIT / QUERY_ARG_OFFSET。 */
+    /**
+     * 收藏智能相册筛选。IS_FAVORITE 列 API 30 起才有:30+ 的收藏详情直查该条件
+     * (含系统相册打的收藏),更低版本没有该列,收藏只有 Room 覆盖层一条数据源,
+     * 由 PhotoRepository 按 API 分流。
+     */
+    const val FAVORITE_SELECTION = "${MediaStore.MediaColumns.IS_FAVORITE}=1"
+
+    /**
+     * 截图智能相册筛选:RELATIVE_PATH 指向 Screenshots 目录。目录路径有无结尾斜杠两种
+     * 取值都存在,两个 LIKE 分支分别覆盖;SQLite 的 LIKE 对 ASCII 不区分大小写,厂商写入的
+     * 小写路径也能命中。RELATIVE_PATH 列 API 29 起才有,更低版本截图卡片不展示
+     * (AlbumsScreen 按 Q 分流),不会有调用方。
+     */
+    const val SCREENSHOTS_SELECTION =
+        "(${MediaStore.MediaColumns.RELATIVE_PATH} LIKE '%Screenshots/%' OR " +
+            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE '%Screenshots')"
+
+    /** 智能相册概览条数查询的聚合投影列。 */
+    const val COUNT_AGGREGATE = "COUNT(${MediaStore.Images.Media._ID})"
+
+    /**
+     * API 30+ 的查询参数:排序走 SQL 排序子句,分页走 QUERY_ARG_LIMIT / QUERY_ARG_OFFSET;
+     * selection 非空时附带筛选条件(智能相册的条件分页),selectionArgs 缺省为空组。
+     */
     @RequiresApi(Build.VERSION_CODES.R)
-    fun modernQueryArgs(loadSize: Int, offset: Int): Bundle = bundleOf(
-        ContentResolver.QUERY_ARG_SQL_SORT_ORDER to SORT_ORDER,
-        ContentResolver.QUERY_ARG_LIMIT to loadSize,
-        ContentResolver.QUERY_ARG_OFFSET to offset
-    )
+    fun modernQueryArgs(
+        loadSize: Int,
+        offset: Int,
+        selection: String? = null,
+        selectionArgs: Array<String>? = null
+    ): Bundle {
+        val args = bundleOf(
+            ContentResolver.QUERY_ARG_SQL_SORT_ORDER to SORT_ORDER,
+            ContentResolver.QUERY_ARG_LIMIT to loadSize,
+            ContentResolver.QUERY_ARG_OFFSET to offset
+        )
+        if (selection != null) {
+            args.putString(ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+            args.putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs ?: emptyArray())
+        }
+        return args
+    }
 }

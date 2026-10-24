@@ -35,6 +35,7 @@ import com.example.pixcase.R
 import com.example.pixcase.ui.common.PlaceholderScreen
 import com.example.pixcase.ui.feature.albums.AlbumDetailScreen
 import com.example.pixcase.ui.feature.albums.AlbumsScreen
+import com.example.pixcase.ui.feature.albums.SmartAlbumDetailScreen
 import com.example.pixcase.ui.feature.timeline.TimelineRoute
 import com.example.pixcase.ui.feature.viewer.ViewerRoute
 
@@ -48,6 +49,13 @@ private object Routes {
     const val ALBUM_DETAIL = "album/{$ALBUM_DETAIL_ARG}"
 
     fun albumDetail(albumId: Long): String = "album/$albumId"
+
+    /** 智能相册详情页;kind 取 AlbumsScreen 的 SMART_* 常量,标题由详情页反查资源。 */
+    const val SMART_DETAIL_ARG = "kind"
+    const val SMART_DETAIL = "smart/{$SMART_DETAIL_ARG}"
+
+    fun smartDetail(kind: String): String = "smart/$kind"
+
     const val SEARCH = "search"
     const val FAVORITES = "favorites"
     const val SETTINGS = "settings"
@@ -136,12 +144,12 @@ fun PixcaseNavGraph(navController: NavHostController) {
     }
 }
 
-/** 相册 Tab 与自定义相册详情页;图片点击复用全局查看器路由。 */
+/** 相册 Tab、自定义相册详情页与智能相册详情页;图片点击复用全局查看器路由。 */
 private fun NavGraphBuilder.albumNavEntries(navController: NavHostController) {
     composable(Routes.ALBUMS) {
         AlbumsScreen(
             onAlbumClick = { albumId -> navController.navigate(Routes.albumDetail(albumId)) },
-            onSmartAlbumClick = { }
+            onSmartAlbumClick = { kind -> navController.navigate(Routes.smartDetail(kind)) }
         )
     }
     composable(
@@ -151,6 +159,12 @@ private fun NavGraphBuilder.albumNavEntries(navController: NavHostController) {
         )
     ) {
         AlbumDetailScreen(
+            onBack = { navController.popBackStack() },
+            onPhotoClick = { photoId -> navController.navigate(Routes.viewer(photoId)) }
+        )
+    }
+    composable(Routes.SMART_DETAIL) {
+        SmartAlbumDetailScreen(
             onBack = { navController.popBackStack() },
             onPhotoClick = { photoId -> navController.navigate(Routes.viewer(photoId)) }
         )

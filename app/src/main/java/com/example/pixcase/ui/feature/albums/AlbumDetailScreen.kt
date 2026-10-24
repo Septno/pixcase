@@ -30,8 +30,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.example.pixcase.R
 import com.example.pixcase.data.mediastore.imageContentUri
+import com.example.pixcase.data.model.MediaPhoto
 
-private const val DETAIL_COLUMN_COUNT = 3
+internal const val DETAIL_COLUMN_COUNT = 3
 
 /**
  * 自定义相册详情页:相册内照片网格,点照片进全屏查看器。
@@ -39,6 +40,7 @@ private const val DETAIL_COLUMN_COUNT = 3
  * 查看器的翻页上下文仍是时间线的分页窗口(查看器复用时间线 ViewModel,
  * 见 NavGraph 注释)—— 这是当前已知限制,相册内连续翻页属后续增强。
  * 移出照片 / 详情页内多选属后续增强。
+ * 顶栏与照片格子被智能相册详情页([SmartAlbumDetailScreen])复用。
  */
 @Composable
 fun AlbumDetailScreen(
@@ -59,22 +61,28 @@ fun AlbumDetailScreen(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             items(photos.size, key = { photos[it].id }) { index ->
-                val photo = photos[index]
-                AsyncImage(
-                    model = imageContentUri(photo.id),
-                    contentDescription = photo.displayName,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .clickable { onPhotoClick(photo.id) }
-                )
+                DetailPhotoCell(photo = photos[index], onPhotoClick = onPhotoClick)
             }
         }
     }
 }
 
+/** 详情网格的照片格子:缩略图 + 点击进查看器。 */
 @Composable
-private fun AlbumDetailTopBar(name: String, count: Int, onBack: () -> Unit) {
+internal fun DetailPhotoCell(photo: MediaPhoto, onPhotoClick: (Long) -> Unit) {
+    AsyncImage(
+        model = imageContentUri(photo.id),
+        contentDescription = photo.displayName,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .aspectRatio(1f)
+            .clickable { onPhotoClick(photo.id) }
+    )
+}
+
+/** 详情页顶栏(返回 + 名称 + 条数),自定义相册与智能相册详情共用。 */
+@Composable
+internal fun AlbumDetailTopBar(name: String, count: Int, onBack: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()

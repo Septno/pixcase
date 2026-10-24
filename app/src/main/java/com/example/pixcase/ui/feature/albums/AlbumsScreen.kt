@@ -37,7 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -46,14 +46,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.example.pixcase.R
+import com.example.pixcase.data.mediastore.MediaSummary
 import com.example.pixcase.data.mediastore.imageContentUri
 
-/** 智能相册标识:后续详情页按它决定用哪种 MediaStore 查询。 */
+/** 智能相册标识:详情路由与数据源分流按它决定。 */
 const val SMART_FAVORITES = "favorites"
 const val SMART_SCREENSHOTS = "screenshots"
-
-/** 智能相册详情未上线时的置灰不透明度。 */
-private const val SMART_DISABLED_ALPHA = 0.45f
 
 /** 智能相册卡片是横卡,宽高比固定 1.6。 */
 private const val SMART_CARD_ASPECT_RATIO = 1.6f
@@ -63,7 +61,7 @@ private const val SMART_CARD_ASPECT_RATIO = 1.6f
  *
  * 自定义相册封面 = coverMediaId(加入照片时自动补第一张,或手动指定),空封面用图标占位;
  * 卡片点击进详情页,卡片右上角菜单提供 重命名 / 删除。
- * 智能相册的详情查询(M按 RELATIVE_PATH / IS_FAVORITE 筛选)属后续增强,当前置灰防误导。
+ * 智能相册封面 = 条件筛选的最近一张,计数来自 MediaStore 概览查询;点击进智能相册详情页。
  */
 @Composable
 fun AlbumsScreen(
@@ -72,6 +70,8 @@ fun AlbumsScreen(
     viewModel: AlbumsViewModel = hiltViewModel()
 ) {
     val albums by viewModel.userAlbums.collectAsStateWithLifecycle()
+    val favoritesSummary by viewModel.favoritesSummary.collectAsStateWithLifecycle()
+    val screenshotsSummary by viewModel.screenshotsSummary.collectAsStateWithLifecycle()
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<AlbumCard?>(null) }
     var deleteTarget by remember { mutableStateOf<AlbumCard?>(null) }
@@ -87,6 +87,8 @@ fun AlbumsScreen(
     ) { padding ->
         AlbumsGrid(
             albums = albums,
+            favoritesSummary = favoritesSummary,
+            screenshotsSummary = screenshotsSummary,
             onAlbumClick = onAlbumClick,
             onSmartAlbumClick = onSmartAlbumClick,
             onRename = { renameTarget = it },
@@ -168,10 +170,12 @@ private fun AlbumsDialogs(
     }
 }
 
-/** 相册网格:智能相册置灰卡在前,自定义相册卡片在后。 */
+/** 相册网格:智能相册卡在前,自定义相册卡片在后。 */
 @Composable
 private fun AlbumsGrid(
     albums: List<AlbumCard>,
+    favoritesSummary: MediaSummary?,
+    screenshotsSummary: MediaSummary?,
     onAlbumClick: (Long) -> Unit,
     onSmartAlbumClick: (String) -> Unit,
     onRename: (AlbumCard) -> Unit,
@@ -189,7 +193,7 @@ private fun AlbumsGrid(
             SmartAlbumCard(
                 icon = Icons.Filled.Favorite,
                 label = stringResource(R.string.albums_smart_favorites),
-                enabled = false,
+                summary = favoritesSummary,
                 onClick = { onSmartAlbumClick(SMART_FAVORITES) }
             )
         }
@@ -198,7 +202,7 @@ private fun AlbumsGrid(
                 SmartAlbumCard(
                     icon = Icons.Outlined.Screenshot,
                     label = stringResource(R.string.albums_smart_screenshots),
-                    enabled = false,
+                    summary = screenshotsSummary,
                     onClick = { onSmartAlbumClick(SMART_SCREENSHOTS) }
                 )
             }
@@ -215,34 +219,42 @@ private fun AlbumsGrid(
     }
 }
 
-/** 智能相册卡片:图标 + 名称(封面与计数为后续增强)。 */
+/** 智能相册卡片:封面(筛选结果最近一张,空则图标)+ 名称 + 条数。 */
 @Composable
-private fun SmartAlbumCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    Card(modifier = Modifier.clickable(enabled = enabled, onClick = onClick)) {
+private fun SmartAlbumCard(icon: ImageVector, label: String, summary: MediaSummary?, onClick: () -> Unit) {
+    Card(modifier = Modifier.clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(SMART_CARD_ASPECT_RATIO)
-                .alpha(if (enabled) 1f else SMART_DISABLED_ALPHA),
-            contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(24.dp)
+            val coverMediaId = summary?.latestMediaId
+            if (coverMediaId != null) {
+                AsyncImage(
+                    model = imageContentUri(coverMediaId),
+                    contentDescription = label,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize()
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(24.dp)
+                )
+            }
+        }
+        Column(modifier = Modifier.padding(8.dp)) {
+            Text(text = label, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+            Text(
+                text = quantityCountLabel(summary?.count ?: 0),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(12.dp)
-        )
     }
 }
 

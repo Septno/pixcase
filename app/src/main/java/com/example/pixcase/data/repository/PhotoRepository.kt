@@ -1,6 +1,7 @@
 package com.example.pixcase.data.repository
 
 import android.content.IntentSender
+import android.os.Build
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
@@ -14,6 +15,8 @@ import com.example.pixcase.data.db.entity.FavoriteEntity
 import com.example.pixcase.data.db.entity.HiddenEntity
 import com.example.pixcase.data.mediastore.MediaStoreDataSource
 import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
+import com.example.pixcase.data.mediastore.MediaStoreProjection
+import com.example.pixcase.data.mediastore.MediaSummary
 import com.example.pixcase.data.model.MediaPhoto
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,8 +24,18 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map as mapFlow
+
+/**
+ * 按 Room 覆盖层的 id 顺序重排补查结果;已从 MediaStore 消失的照片(补查缺席)跳过。
+ * 独立成函数便于单测覆盖顺序与缺席语义。
+ */
+internal fun orderByIds(ids: List<Long>, photos: List<MediaPhoto>): List<MediaPhoto> {
+    val byId = photos.associateBy { it.id }
+    return ids.mapNotNull { byId[it] }
+}
 
 /**
  * 照片仓库:读 = MediaStore Paging(数据源) + Room 收藏/隐藏覆盖层;写 = Room 真源 + MediaStore 尽力同步。
@@ -80,6 +93,63 @@ class PhotoRepository @Inject constructor(
                     .filter { !it.isHidden }
             }
         }
+
+    //region 智能相册(收藏 / 截图):MediaStore 条件筛选,概览与内容共用同一 selection
+
+    /**
+     * 收藏智能相册的条数与封面(最近一张)。
+     * API 30+ 直查 MediaStore `IS_FAVORITE`(含系统相册打的收藏);更低版本没有该列,
+     * 收藏只有本 App 的 Room 覆盖层一条数据源(封面即最近收藏的一条,孤儿行由清理流程收敛)。
+     */
+    fun observeFavoritesSummary(sdkInt: Int = Build.VERSION.SDK_INT): Flow<MediaSummary> =
+        if (MediaStoreProjection.supportsQueryArgs(sdkInt)) {
+            dataSource.observeSummary(MediaStoreProjection.FAVORITE_SELECTION, NO_SELECTION_ARGS, useQueryArgs = true)
+        } else {
+            favoriteDao.observeAllIds().mapFlow { ids -> MediaSummary(ids.size, ids.firstOrNull()) }
+        }
+
+    /**
+     * 截图智能相册的条数与封面。RELATIVE_PATH 列 API 29 起才有,低版本没有调用方
+     * (截图卡片按 Q 分流展示)。
+     */
+    fun observeScreenshotsSummary(): Flow<MediaSummary> =
+        dataSource.observeSummary(MediaStoreProjection.SCREENSHOTS_SELECTION, NO_SELECTION_ARGS)
+
+    /** 收藏智能相册内容;分流语义同 [observeFavoritesSummary]。 */
+    fun smartFavorites(sdkInt: Int = Build.VERSION.SDK_INT): Flow<PagingData<MediaPhoto>> =
+        if (MediaStoreProjection.supportsQueryArgs(sdkInt)) {
+            pagedImages(MediaStoreProjection.FAVORITE_SELECTION)
+        } else {
+            roomFavoritesPaging()
+        }
+
+    /** 截图智能相册内容:RELATIVE_PATH 条件分页(仅 Q+ 有入口)。 */
+    fun smartScreenshots(): Flow<PagingData<MediaPhoto>> = pagedImages(MediaStoreProjection.SCREENSHOTS_SELECTION)
+
+    /** MediaStore 条件分页的统一壳:与时间线同一套 Paging 配置与失效机制。 */
+    private fun pagedImages(selection: String): Flow<PagingData<MediaPhoto>> = Pager(
+        config = PagingConfig(
+            pageSize = PAGE_SIZE,
+            prefetchDistance = PREFETCH_DISTANCE,
+            initialLoadSize = PAGE_SIZE,
+            enablePlaceholders = false
+        ),
+        pagingSourceFactory = { dataSource.imagesPagingSource(selection, NO_SELECTION_ARGS) }
+    ).flow
+
+    /**
+     * API 29 及以下的收藏内容:Room 收藏覆盖层(按收藏时间倒序)→ MediaStore 按需补查,
+     * 照片可能已被系统删除,补查缺席即跳过。一次性列表装进 PagingData —— 收藏规模由本 App
+     * 自己的收藏行为决定,与相册详情同思路不分页。
+     */
+    private fun roomFavoritesPaging(): Flow<PagingData<MediaPhoto>> = favoriteDao.observeAllIds()
+        .distinctUntilChanged()
+        .flatMapLatest { ids ->
+            flow { emit(orderByIds(ids, photosByIds(ids))) }
+                .mapFlow { ordered -> PagingData.from(ordered) }
+        }
+
+    //endregion
 
     /** 选中项里已收藏的媒体 ID 集合;空集合不触达 DAO(空 IN 子句 SQL 会报错)。 */
     suspend fun favoritesOf(mediaIds: Collection<Long>): Set<Long> =
@@ -154,5 +224,8 @@ class PhotoRepository @Inject constructor(
     private companion object {
         const val PAGE_SIZE = 200
         const val PREFETCH_DISTANCE = 10
+
+        /** IS_FAVORITE / RELATIVE_PATH 筛选都不带绑定参数,共享同一空数组。 */
+        val NO_SELECTION_ARGS = emptyArray<String>()
     }
 }

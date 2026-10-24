@@ -15,12 +15,18 @@ import com.example.pixcase.data.model.MediaPhoto
  * - API 30+:ContentResolver 的 Bundle 查询参数(QUERY_ARG_LIMIT / QUERY_ARG_OFFSET);
  * - API 26-29:把 "LIMIT n OFFSET n" 拼进 sortOrder。
  *
+ * selection / selectionArgs 非空时附带筛选条件(智能相册的条件分页):30+ 进 Bundle 的
+ * QUERY_ARG_SQL_SELECTION,低版本直接走 query 的 selection 参数。
+ *
  * ContentObserver 触发 invalidate() 时整体重新加载。
  */
+@Suppress("LongParameterList") // 筛选参数(selection + args)是条件分页的必要参数对,与既有 5 个维度并列,打包成对象反而多一层无语义包装
 internal class MediaStorePagingSource(
     private val contentResolver: ContentResolver,
     private val contentUri: Uri,
     private val projection: Array<String>,
+    private val selection: String? = null,
+    private val selectionArgs: Array<String>? = null,
     private val mapper: (Cursor, Uri) -> MediaPhoto? = { cursor, uri -> cursor.toMediaPhotoOrNull(uri) },
     private val sdkInt: Int = Build.VERSION.SDK_INT
 ) : PagingSource<Int, MediaPhoto>() {
@@ -55,7 +61,7 @@ internal class MediaStorePagingSource(
             contentResolver.query(
                 contentUri,
                 projection,
-                MediaStoreProjection.modernQueryArgs(loadSize, offset),
+                MediaStoreProjection.modernQueryArgs(loadSize, offset, selection, selectionArgs),
                 /* cancellationSignal = */
                 null
             )
@@ -64,9 +70,9 @@ internal class MediaStorePagingSource(
                 contentUri,
                 projection,
                 /* selection = */
-                null,
+                selection,
                 /* selectionArgs = */
-                null,
+                selectionArgs,
                 MediaStoreProjection.legacySortOrder(loadSize, offset)
             )
         } ?: return emptyList()
