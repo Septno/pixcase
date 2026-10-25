@@ -48,6 +48,7 @@ class QuickSortViewModelTest {
         coEvery { photoRepository.photosByIds(any()) } returns emptyList()
         coEvery { quickSortRepository.recordKeep(any(), any(), any()) } returns Unit
         coEvery { quickSortRepository.recordSkip(any(), any(), any()) } returns Unit
+        coEvery { quickSortRepository.recordMove(any(), any(), any(), any()) } returns Unit
         // dockAlbums 的 combine 在属性初始化时即调用 observeTargets(Flow 工厂调用,非收集)
         every { quickSortRepository.observeTargets(any()) } returns flowOf(emptyList())
         every { albumsRepository.observeUserAlbums() } returns flowOf(
@@ -267,6 +268,23 @@ class QuickSortViewModelTest {
 
         coVerify(exactly = 1) { quickSortRepository.resetSession(1L, any()) }
         assertEquals(listOf(7L), vm.pendingPhotos.value.map { it.id })
+    }
+
+    @Test
+    fun `moveCurrentTo records move to target album and advances queue`() = runTest(testDispatcher) {
+        coEvery { quickSortRepository.session(1L) } returns session(completed = false)
+        coEvery { quickSortRepository.pendingMediaIds(1L) } returns listOf(9L, 5L)
+        coEvery { photoRepository.photosByIds(listOf(9L, 5L)) } returns listOf(photo(9L), photo(5L))
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.continueSession()
+        advanceUntilIdle()
+
+        vm.moveCurrentTo(3L)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { quickSortRepository.recordMove(1L, 9L, 3L, any()) }
+        assertEquals(listOf(5L), vm.pendingPhotos.value.map { it.id })
     }
 
     private fun photo(id: Long) = MediaPhoto(
