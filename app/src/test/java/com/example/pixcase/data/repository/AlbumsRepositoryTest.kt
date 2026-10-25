@@ -76,6 +76,31 @@ class AlbumsRepositoryTest {
     }
 
     @Test
+    fun `createAlbum rejects duplicate name without inserting`() = runTest {
+        coEvery { albumDao.existsName("DestA") } returns true
+
+        val id = repository.createAlbum(" DestA ", 1L)
+
+        assertNull(id)
+        coVerify(exactly = 0) { albumDao.insert(any()) }
+    }
+
+    @Test
+    fun `renameAlbum rejects name taken by another album but allows keeping own`() = runTest {
+        val album = AlbumEntity(id = 7L, name = "旧名", coverMediaId = null, createdAt = 1L, updatedAt = 1L)
+        coEvery { albumDao.findById(7L) } returns album
+        coEvery { albumDao.findByNameExcluding("DestA", 7L) } returns mockk()
+
+        assertEquals(false, repository.renameAlbum(7L, "DestA", 2L))
+        coVerify(exactly = 0) { albumDao.update(any()) }
+
+        // 改回自己的名字(无其他相册占用)应放行
+        coEvery { albumDao.findByNameExcluding("旧名", 7L) } returns null
+        assertEquals(true, repository.renameAlbum(7L, "旧名", 3L))
+        coVerify(exactly = 1) { albumDao.update(any()) }
+    }
+
+    @Test
     fun `deleteAlbum clears refs before removing the album`() = runTest {
         coEvery { albumDao.findById(7L) } returns mockk()
         val deleteOrder = mutableListOf<String>()
