@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.pixcase.data.db.AppDatabase
 import com.example.pixcase.data.mediastore.MediaStoreDataSource
 import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
+import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -193,5 +194,67 @@ class QuickSortRepositoryTest {
         assertEquals(0, session.processedCount)
         assertEquals(2, session.totalCount)
         assertEquals(listOf(1L, 2L), repository.pendingMediaIds(1L))
+    }
+
+    @Test
+    fun `trash with photo in multiple albums only unbinds and is undoable`() = runTest {
+        seedAlbums()
+        seedSourcePhotos(2)
+        repository.createSession(1L, listOf(2L), 0L)
+        // 照片 1 同时加入相册 2 → 所属相册数 > 1,走仅解绑分支
+        albumsRepository.addPhotos(2L, listOf(1L), 5L)
+
+        val outcome = repository.trashFromAlbum(albumId = 1L, mediaId = 1L, now = 10L)
+
+        assertEquals(TrashOutcome.Unbound(1L), outcome)
+        assertEquals(setOf(2L), db.albumPhotoDao().albumIdsOf(1L).toSet())
+        assertEquals(1, repository.session(1L)!!.processedCount)
+        assertEquals(listOf(2L), repository.pendingMediaIds(1L))
+
+        // 撤销:关联恢复、决策删除、进度回退,照片回到待处理
+        repository.undoUnbind(albumId = 1L, mediaId = 1L, now = 20L)
+        assertEquals(setOf(1L, 2L), db.albumPhotoDao().albumIdsOf(1L).toSet())
+        assertEquals(0, repository.session(1L)!!.processedCount)
+        assertEquals(listOf(1L, 2L), repository.pendingMediaIds(1L))
+    }
+
+    @Test
+    fun `trash with photo in single album performs real delete and records decision`() = runTest {
+        seedAlbums()
+        seedSourcePhotos(2)
+        repository.createSession(1L, listOf(2L), 0L)
+        coEvery { photoWriter.deleteImages(listOf(1L)) } returns
+            MediaStorePhotoWriter.DeleteOutcome.Completed(deletedCount = 1, deletedIds = listOf(1L))
+
+        val outcome = repository.trashFromAlbum(albumId = 1L, mediaId = 1L, now = 10L)
+
+        // Robolectric sdk = 34 → 30+,非永久删除(进系统回收站语义)
+        assertEquals(TrashOutcome.Deleted(permanent = false), outcome)
+        assertEquals(1, repository.session(1L)!!.processedCount)
+        // deletePhotos Completed 分支已清照片 1 的全部 Room 关联(不挂任何相册)
+        assertEquals(emptySet<Long>(), db.albumPhotoDao().albumIdsOf(1L).toSet())
+        assertEquals(listOf(2L), repository.pendingMediaIds(1L))
+    }
+
+    @Test
+    fun `trash consent pending keeps Room untouched until approval`() = runTest {
+        seedAlbums()
+        seedSourcePhotos(1)
+        repository.createSession(1L, listOf(2L), 0L)
+        val sender = mockk<android.content.IntentSender>()
+        coEvery { photoWriter.deleteImages(listOf(1L)) } returns
+            MediaStorePhotoWriter.DeleteOutcome.NeedsConsent(sender)
+
+        val outcome = repository.trashFromAlbum(albumId = 1L, mediaId = 1L, now = 10L)
+
+        assertEquals(TrashOutcome.NeedsConsent(sender), outcome)
+        // 确认在途:决策与进度都不动,照片仍在队列
+        assertEquals(0, repository.session(1L)!!.processedCount)
+        assertEquals(listOf(1L), repository.pendingMediaIds(1L))
+
+        // 同意后 finalize 补决策 + 进度
+        repository.finalizeConsentedTrash(albumId = 1L, mediaId = 1L, now = 20L)
+        assertEquals(1, repository.session(1L)!!.processedCount)
+        assertEquals(emptyList<Long>(), repository.pendingMediaIds(1L))
     }
 }
