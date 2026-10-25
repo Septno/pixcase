@@ -86,6 +86,15 @@
     <string name="quicksort_restart_hint">Starting over resets progress only. No photos are deleted or removed.</string>
     <string name="quicksort_setup_title">Choose target albums</string>
     <string name="quicksort_setup_none">No other albums yet. You can still sort with keep only.</string>
+    <string name="quicksort_cd_restart">Restart sorting</string>
+    <string name="quicksort_hint_keep">Keep</string>
+    <string name="quicksort_hint_delete">Delete</string>
+    <string name="quicksort_fallback_keep">Keep</string>
+    <string name="quicksort_fallback_skip">Skip</string>
+    <string name="quicksort_done">All sorted</string>
+    <string name="quicksort_restart_confirm_title">Restart this session?</string>
+    <string name="quicksort_restart_confirm_text">The %1$d processed photos will re-enter the sorting queue. Target album settings will be kept.</string>
+    <string name="quicksort_restart_confirm_ok">Confirm restart</string>
     <string name="delete_confirm_title">Delete photos?</string>
     <string name="delete_confirm_ok">Delete</string>
     <plurals name="selection_count">

@@ -5,8 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.pixcase.data.db.entity.AlbumEntity
 import com.example.pixcase.data.db.entity.QuickSortSessionEntity
+import com.example.pixcase.data.model.MediaPhoto
 import com.example.pixcase.data.repository.AlbumsRepository
+import com.example.pixcase.data.repository.PhotoRepository
 import com.example.pixcase.data.repository.QuickSortRepository
+import com.example.pixcase.data.repository.orderByIds
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,10 +48,15 @@ sealed interface QuickSortStage {
 class QuickSortViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val quickSortRepository: QuickSortRepository,
-    albumsRepository: AlbumsRepository
+    albumsRepository: AlbumsRepository,
+    private val photoRepository: PhotoRepository
 ) : ViewModel() {
 
     val albumId: Long = checkNotNull(savedStateHandle[ALBUM_ID_KEY])
+
+    /** 待处理照片队列(队首 = 当前卡片),决策后本地推进。 */
+    private val _pendingPhotos = MutableStateFlow<List<MediaPhoto>>(emptyList())
+    val pendingPhotos: StateFlow<List<MediaPhoto>> = _pendingPhotos
 
     val albumName: StateFlow<String> = albumsRepository.observeUserAlbums()
         .map { albums -> albums.firstOrNull { it.id == albumId }?.name.orEmpty() }
@@ -75,15 +83,19 @@ class QuickSortViewModel @Inject constructor(
         }
     }
 
-    /** 继续上次:session、目标与已决策原样保留。 */
+    /** 继续上次:session、目标与已决策原样保留,重载待处理队列。 */
     fun continueSession() {
-        _stage.value = QuickSortStage.Active
+        viewModelScope.launch {
+            reloadPending()
+            _stage.value = QuickSortStage.Active
+        }
     }
 
     /** 从头开始:只重置进度(decisions 清空、计数归零),不动照片关联。 */
     fun restartFromBeginning() {
         viewModelScope.launch {
             quickSortRepository.resetSession(albumId, System.currentTimeMillis())
+            reloadPending()
             _stage.value = QuickSortStage.Active
         }
     }
@@ -92,8 +104,41 @@ class QuickSortViewModel @Inject constructor(
     fun startSession(targetAlbumIds: List<Long>) {
         viewModelScope.launch {
             quickSortRepository.createSession(albumId, targetAlbumIds, System.currentTimeMillis())
+            reloadPending()
             _stage.value = QuickSortStage.Active
         }
+    }
+
+    /** ⟲ 重启(二次确认后):重置进度并重载队列,目标相册设置保留。 */
+    fun restartSession() {
+        viewModelScope.launch {
+            quickSortRepository.resetSession(albumId, System.currentTimeMillis())
+            reloadPending()
+        }
+    }
+
+    /** 左划「保留」:决策立即落库(任务 5 事务),队列本地推进。 */
+    fun keepCurrent() {
+        decide { head -> quickSortRepository.recordKeep(albumId, head.id, System.currentTimeMillis()) }
+    }
+
+    /** 兜底 Sheet 里的「跳过」:同样算已处理(计划 § 3.5.3)。 */
+    fun skipCurrent() {
+        decide { head -> quickSortRepository.recordSkip(albumId, head.id, System.currentTimeMillis()) }
+    }
+
+    private fun decide(record: suspend (MediaPhoto) -> Unit) {
+        val head = _pendingPhotos.value.firstOrNull() ?: return
+        viewModelScope.launch {
+            record(head)
+            _pendingPhotos.value = _pendingPhotos.value.drop(1)
+        }
+    }
+
+    /** 待处理队列 = 相册顺序过滤已决策(仓库),再按需补查照片详情(MOVE/查看用不到尺寸,列表列足够)。 */
+    private suspend fun reloadPending() {
+        val ids = quickSortRepository.pendingMediaIds(albumId)
+        _pendingPhotos.value = orderByIds(ids, photoRepository.photosByIds(ids))
     }
 
     /** 退出:自动保存进度(计划 § 3.5.1),再回调导航返回。 */

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
@@ -27,7 +28,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -36,6 +39,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.pixcase.R
 import com.example.pixcase.data.db.entity.AlbumEntity
+import com.example.pixcase.data.model.MediaPhoto
 
 /**
  * 快速整理路由:进入分流(Loading → NeedsChoice / NeedsConfig)→ Active 整理界面。
@@ -47,6 +51,9 @@ fun QuickSortRoute(onBack: () -> Unit, viewModel: QuickSortViewModel = hiltViewM
     val albumName by viewModel.albumName.collectAsStateWithLifecycle()
     val candidateAlbums by viewModel.candidateAlbums.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
+    val pendingPhotos by viewModel.pendingPhotos.collectAsStateWithLifecycle()
+    var showRestartConfirm by remember { mutableStateOf(false) }
+    var showFallback by remember { mutableStateOf(false) }
 
     when (stage) {
         QuickSortStage.Loading -> Unit
@@ -59,46 +66,100 @@ fun QuickSortRoute(onBack: () -> Unit, viewModel: QuickSortViewModel = hiltViewM
             onStart = viewModel::startSession,
             onDismiss = onBack
         )
-        QuickSortStage.Active -> QuickSortScreen(
-            albumName = albumName,
-            processedCount = session?.processedCount ?: 0,
-            totalCount = session?.totalCount ?: 0,
-            onBack = { currentIndex -> viewModel.exit(currentIndex, onBack) }
-        )
+        QuickSortStage.Active -> {
+            QuickSortScreen(
+                albumName = albumName,
+                processedCount = session?.processedCount ?: 0,
+                totalCount = session?.totalCount ?: 0,
+                pendingPhotos = pendingPhotos,
+                onExit = { currentIndex -> viewModel.exit(currentIndex, onBack) },
+                onRequestRestart = { showRestartConfirm = true },
+                onKeep = viewModel::keepCurrent,
+                onFallback = { showFallback = true }
+            )
+            if (showRestartConfirm) {
+                RestartConfirmDialog(
+                    processedCount = session?.processedCount ?: 0,
+                    onConfirm = {
+                        showRestartConfirm = false
+                        viewModel.restartSession()
+                    },
+                    onDismiss = { showRestartConfirm = false }
+                )
+            }
+            if (showFallback) {
+                FallbackSheet(
+                    photo = pendingPhotos.firstOrNull(),
+                    onKeep = {
+                        showFallback = false
+                        viewModel.keepCurrent()
+                    },
+                    onSkip = {
+                        showFallback = false
+                        viewModel.skipCurrent()
+                    },
+                    onDismiss = { showFallback = false }
+                )
+            }
+        }
     }
 }
 
 /**
- * 整理界面(阶段 3.5 任务 6 的骨架):顶栏 = ←(退出自动保存)+「相册名 · 快速整理」+ 进度。
- * 卡片堆叠与手势反馈在任务 7 落地,当前正文为队列概览。
+ * 整理界面:顶栏 = ←(退出自动保存)+「相册名 · 快速整理」+ 进度 N/M + ⟲(二次确认);
+ * 正文 = 卡片堆叠(队列排空后显示完成态)。
  */
 @Composable
-private fun QuickSortScreen(albumName: String, processedCount: Int, totalCount: Int, onBack: (Int) -> Unit) {
-    // 卡片界面(任务 7)接管 currentIndex;当前骨架持 0,退出保存走同一通道。
-    val currentIndex = 0
-    BackHandler { onBack(currentIndex) }
-    val pendingCount = (totalCount - processedCount).coerceAtLeast(0)
+private fun QuickSortScreen(
+    albumName: String,
+    processedCount: Int,
+    totalCount: Int,
+    pendingPhotos: List<MediaPhoto>,
+    onExit: (Int) -> Unit,
+    onRequestRestart: () -> Unit,
+    onKeep: () -> Unit,
+    onFallback: () -> Unit
+) {
+    // 退出保存的「当前位置」= 已处理张数(队列随决策收缩,下标语义等价于进度)
+    val currentIndex = processedCount
+    BackHandler { onExit(currentIndex) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         QuickSortTopBar(
             albumName = albumName,
             processedCount = processedCount,
             totalCount = totalCount,
-            onBack = { onBack(currentIndex) }
+            onBack = { onExit(currentIndex) },
+            onRestart = onRequestRestart
         )
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                text = stringResource(R.string.quicksort_pending_summary, pendingCount),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        if (pendingPhotos.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = stringResource(R.string.quicksort_done),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        } else {
+            PhotoCardStack(
+                photos = pendingPhotos,
+                onKeep = onKeep,
+                onFallback = onFallback,
+                modifier = Modifier.weight(1f)
             )
         }
     }
 }
 
-/** 顶栏:返回(退出自动保存)+ 标题 + 进度 N/M;⟲ 重启按钮随任务 7 的二次确认一起上。 */
+/** 顶栏:返回(退出自动保存)+ 标题 + 进度 N/M + ⟲(重启,入口处必弹二次确认)。 */
 @Composable
-private fun QuickSortTopBar(albumName: String, processedCount: Int, totalCount: Int, onBack: () -> Unit) {
+private fun QuickSortTopBar(
+    albumName: String,
+    processedCount: Int,
+    totalCount: Int,
+    onBack: () -> Unit,
+    onRestart: () -> Unit
+) {
     Surface(color = MaterialTheme.colorScheme.surface) {
         Row(
             modifier = Modifier
@@ -125,6 +186,62 @@ private fun QuickSortTopBar(albumName: String, processedCount: Int, totalCount: 
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 12.dp)
             )
+            IconButton(onClick = onRestart) {
+                Icon(
+                    imageVector = Icons.Outlined.Replay,
+                    contentDescription = stringResource(R.string.quicksort_cd_restart)
+                )
+            }
+        }
+    }
+}
+
+/** ⟲ 重启二次确认(计划 § 3.5.2 文案;主按钮 destructive 红)。 */
+@Composable
+private fun RestartConfirmDialog(processedCount: Int, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.quicksort_restart_confirm_title)) },
+        text = { Text(stringResource(R.string.quicksort_restart_confirm_text, processedCount)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    text = stringResource(R.string.quicksort_restart_confirm_ok),
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
+}
+
+/** 兜底 Sheet(下划/右划/长按入口):当前照片的保留 / 跳过;删除与移动随后续任务接入。 */
+@Composable
+private fun FallbackSheet(photo: MediaPhoto?, onKeep: () -> Unit, onSkip: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+            Text(
+                text = photo?.displayName.orEmpty(),
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            TextButton(
+                onClick = onKeep,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.quicksort_fallback_keep))
+            }
+            TextButton(
+                onClick = onSkip,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.quicksort_fallback_skip))
+            }
         }
     }
 }

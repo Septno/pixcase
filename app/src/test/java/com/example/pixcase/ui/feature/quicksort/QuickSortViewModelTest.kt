@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.example.pixcase.data.db.entity.AlbumEntity
 import com.example.pixcase.data.db.entity.QuickSortSessionEntity
 import com.example.pixcase.data.repository.AlbumsRepository
+import com.example.pixcase.data.repository.PhotoRepository
 import com.example.pixcase.data.repository.QuickSortRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -34,11 +35,15 @@ import org.junit.Test
 class QuickSortViewModelTest {
     private val quickSortRepository = mockk<QuickSortRepository>()
     private val albumsRepository = mockk<AlbumsRepository>()
+    private val photoRepository = mockk<PhotoRepository>()
     private val testDispatcher = StandardTestDispatcher()
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        // 队列重载的默认 stub(需要特定值的用例在各自测试里覆盖)
+        coEvery { quickSortRepository.pendingMediaIds(any()) } returns emptyList()
+        coEvery { photoRepository.photosByIds(any()) } returns emptyList()
         every { albumsRepository.observeUserAlbums() } returns flowOf(
             listOf(
                 album(id = 1L, name = "Source"),
@@ -77,7 +82,7 @@ class QuickSortViewModelTest {
 
     private fun viewModel(albumId: Long = 1L): QuickSortViewModel {
         val handle = SavedStateHandle(mapOf(QuickSortViewModel.ALBUM_ID_KEY to albumId))
-        return QuickSortViewModel(handle, quickSortRepository, albumsRepository)
+        return QuickSortViewModel(handle, quickSortRepository, albumsRepository, photoRepository)
     }
 
     @Test
@@ -117,6 +122,7 @@ class QuickSortViewModelTest {
         advanceUntilIdle()
 
         vm.continueSession()
+        advanceUntilIdle()
 
         assertEquals(QuickSortStage.Active, vm.stage.value)
         coVerify(exactly = 0) { quickSortRepository.resetSession(any(), any()) }
