@@ -7,7 +7,9 @@ import com.example.pixcase.data.db.dao.PhotoTagDao
 import com.example.pixcase.data.db.dao.SearchHistoryDao
 import com.example.pixcase.data.db.dao.TagDao
 import com.example.pixcase.data.db.entity.AlbumEntity
+import com.example.pixcase.data.db.entity.SearchHistoryEntity
 import com.example.pixcase.data.db.entity.TagEntity
+import com.example.pixcase.data.db.entity.TagUsageRow
 import com.example.pixcase.data.mediastore.MediaStoreDataSource
 import com.example.pixcase.data.model.MediaPhoto
 import io.mockk.coEvery
@@ -57,6 +59,7 @@ class SearchRepositoryTest {
         coEvery { photoTagDao.rowsForMedia(any()) } returns emptyList()
         coEvery { searchHistoryDao.insert(any()) } returns Unit
         coEvery { searchHistoryDao.trimTo(any()) } returns Unit
+        coEvery { searchHistoryDao.delete(any()) } returns Unit
         every { searchHistoryDao.observeRecent() } returns flowOf(emptyList())
     }
 
@@ -138,5 +141,56 @@ class SearchRepositoryTest {
 
         assertEquals(1, results.size)
         assertEquals(setOf(SearchHitType.ALBUM), results.first().hitTypes)
+    }
+
+    @Test
+    fun `recordQuery dedupes to top and trims beyond capacity`() = runTest {
+        val inserted = mutableListOf<SearchHistoryEntity>()
+        coEvery { searchHistoryDao.insert(any()) } answers {
+            inserted.add(firstArg())
+            Unit
+        }
+
+        repository.recordQuery("a", now = 1L)
+        repository.recordQuery("b", now = 2L)
+        // 同词重搜:先删旧再插 = 去重置顶(每次记录都先删同词,共 2 次)
+        repository.recordQuery("a", now = 3L)
+
+        io.mockk.coVerify(exactly = 2) { searchHistoryDao.delete("a") }
+        io.mockk.coVerify(atLeast = 3) { searchHistoryDao.trimTo(20) }
+        assertEquals(listOf("a", "b", "a"), inserted.map { it.query })
+    }
+
+    @Test
+    fun `recordQuery ignores blank input`() = runTest {
+        repository.recordQuery("   ")
+
+        io.mockk.coVerify(exactly = 0) { searchHistoryDao.insert(any()) }
+    }
+
+    @Test
+    fun `suggestions rank tags by usage then append albums`() = runTest {
+        every { tagDao.observeAll() } returns flowOf(
+            listOf(TagEntity(1L, "sunset", 0, 0L), TagEntity(2L, "summer", 0, 0L))
+        )
+        every { albumsRepository.observeUserAlbums() } returns flowOf(
+            listOf(AlbumEntity(9L, "summer-trip", null, 0L, 0L))
+        )
+        coEvery { photoTagDao.tagUsageCounts() } returns listOf(
+            TagUsageRow(1L, 3),
+            TagUsageRow(2L, 7)
+        )
+
+        val suggestions = repository.suggestions("su")
+
+        // 标签在前按用量降序(summer 7 > sunset 3),相册殿后
+        assertEquals(
+            listOf(
+                SearchSuggestion("summer", isTag = true),
+                SearchSuggestion("sunset", isTag = true),
+                SearchSuggestion("summer-trip", isTag = false)
+            ),
+            suggestions
+        )
     }
 }
