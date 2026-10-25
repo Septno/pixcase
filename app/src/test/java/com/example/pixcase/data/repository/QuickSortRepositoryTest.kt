@@ -162,4 +162,23 @@ class QuickSortRepositoryTest {
 
         assertEquals(3, repository.session(1L)!!.currentIndex)
     }
+
+    @Test
+    fun `createSession clears stale decisions for a clean start`() = runTest {
+        seedAlbums()
+        seedSourcePhotos(2)
+        repository.createSession(1L, listOf(2L), 0L)
+        repository.recordKeep(1L, 1L, 10L)
+        repository.recordSkip(1L, 2L, 11L)
+        assertTrue(repository.session(1L)!!.isCompleted)
+
+        // 完成后重开新一轮:createSession 必须清掉旧 decisions,
+        // 否则已决策照片仍在,新一轮起步即完成态。
+        repository.createSession(1L, listOf(2L), now = 20L)
+
+        val session = repository.session(1L)!!
+        assertEquals(0, session.processedCount)
+        assertEquals(2, session.totalCount)
+        assertEquals(listOf(1L, 2L), repository.pendingMediaIds(1L))
+    }
 }
