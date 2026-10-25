@@ -15,9 +15,13 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/** Dock 上的一个目标相册条目。 */
+data class DockAlbum(val id: Long, val name: String, val coverMediaId: Long?)
 
 /**
  * 快速整理(阶段 3.5)入口与配置流的阶段状态:
@@ -69,6 +73,15 @@ class QuickSortViewModel @Inject constructor(
 
     val session: StateFlow<QuickSortSessionEntity?> = quickSortRepository.observeSession(albumId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)
+
+    /** Dock 的目标相册(按 session target 的 position 顺序;相册被删时缺席即跳过)。 */
+    val dockAlbums: StateFlow<List<DockAlbum>> = combine(
+        quickSortRepository.observeTargets(albumId),
+        albumsRepository.observeUserAlbums()
+    ) { targets, albums ->
+        val byId = albums.associateBy { it.id }
+        targets.mapNotNull { target -> byId[target.targetAlbumId]?.let { DockAlbum(it.id, it.name, it.coverMediaId) } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
     private val _stage = MutableStateFlow<QuickSortStage>(QuickSortStage.Loading)
     val stage: StateFlow<QuickSortStage> = _stage
@@ -125,6 +138,11 @@ class QuickSortViewModel @Inject constructor(
     /** 兜底 Sheet 里的「跳过」:同样算已处理(计划 § 3.5.3)。 */
     fun skipCurrent() {
         decide { head -> quickSortRepository.recordSkip(albumId, head.id, System.currentTimeMillis()) }
+    }
+
+    /** 拖到 Dock:移出当前相册并加入目标相册(decision + 两侧关联同事务,封面顺延随仓库规则)。 */
+    fun moveCurrentTo(targetAlbumId: Long) {
+        decide { head -> quickSortRepository.recordMove(albumId, head.id, targetAlbumId, System.currentTimeMillis()) }
     }
 
     private fun decide(record: suspend (MediaPhoto) -> Unit) {

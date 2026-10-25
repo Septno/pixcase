@@ -95,6 +95,13 @@
     <string name="quicksort_restart_confirm_title">重新开始本次整理?</string>
     <string name="quicksort_restart_confirm_text">已处理的 %1$d 张照片将重新进入整理队列。目标相册设置会保留。</string>
     <string name="quicksort_restart_confirm_ok">确认重新开始</string>
+    <string name="quicksort_dock_add">管理目标相册</string>
+    <string name="quicksort_target_picker_title">管理目标相册</string>
+    <string name="quicksort_target_picker_save">保存</string>
+    <string name="quicksort_target_picker_selected">已选 %1$d / %2$d</string>
+    <string name="quicksort_targets_empty_warning">仅保留 / 删除可用</string>
+    <string name="msg_album_duplicate">相册已存在</string>
+    <string name="msg_album_invalid">相册名不能为空或过长</string>
     <string name="delete_confirm_title">删除这些照片?</string>
     <string name="delete_confirm_ok">删除</string>
     <plurals name="selection_count">

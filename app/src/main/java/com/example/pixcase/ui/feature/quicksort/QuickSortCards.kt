@@ -22,17 +22,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -61,6 +67,9 @@ private const val ROTATION_DIVISOR = 20f
 /** 飞出动画:spring stiffness=400, dampingRatio=0.6(计划 § 3.5.5)。 */
 private const val FLY_OUT_STIFFNESS = 400f
 private const val FLY_OUT_DAMPING_RATIO = 0.6f
+
+/** 拖到 Dock 释放时卡片缩小到的比例(飞向目标圆心并淡出)。 */
+private const val DOCK_DROP_SCALE = 0.15f
 
 /** 新卡上浮:0.95 → 1.0,250ms(计划 § 3.5.5)。 */
 private const val RISE_DURATION_MILLIS = 250
@@ -95,7 +104,9 @@ internal fun dragOutcome(dx: Float, dy: Float, thresholdPx: Float): DragOutcome 
 
 /**
  * 卡片堆叠:队首可拖,后两张静态预览;拖动实时联动 顶部「删除」/左侧「保留」提示层;
- * 松手按 [dragOutcome] 分流 —— Keep 走飞出动画(spring 400/0.6)后回调,其余弹回。
+ * 松手按 [dragOutcome] 分流 —— Keep 走飞出动画(spring 400/0.6)后回调,其余弹回;
+ * 拖到 Dock 目标上(与 [dropTargets] 任一矩形重叠)时优先走 [onMove]:卡片飞向该目标
+ * 圆心并缩小淡出,目标高亮经 [onHoverChange] 上报给 Dock。
  * [photos] 为待处理队列(队首在前);key 用 mediaId,重排后同卡复用组合体与解码缓存。
  */
 @Composable
@@ -103,6 +114,9 @@ internal fun PhotoCardStack(
     photos: List<MediaPhoto>,
     onKeep: () -> Unit,
     onFallback: () -> Unit,
+    onMove: (Long) -> Unit,
+    dropTargets: () -> Map<Long, Rect>,
+    onHoverChange: (Long?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val thresholdPx = with(LocalDensity.current) { DRAG_THRESHOLD.toPx() }
@@ -110,6 +124,8 @@ internal fun PhotoCardStack(
     val riseScale = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
     val headId = photos.firstOrNull()?.id
+    var stackCenter by remember { mutableStateOf(Offset.Zero) }
+    var hoveredTarget by remember { mutableStateOf<Long?>(null) }
 
     // 换卡(决策推进):残余偏移归零,新卡从 0.95 上浮到 1.0
     LaunchedEffect(headId) {
@@ -117,27 +133,58 @@ internal fun PhotoCardStack(
         riseScale.snapTo(1f - CARD_SCALE_STEP)
         riseScale.animateTo(1f, animationSpec = tween(RISE_DURATION_MILLIS))
     }
+    LaunchedEffect(headId) { onHoverChange(null) }
+
+    /** 卡片圆心(堆叠中心 + 拖拽偏移)落在哪个 Dock 目标上;不在任何目标上返回 null。 */
+    fun hoverTargetNow(): Long? {
+        val cardCenter = stackCenter + dragOffset.value
+        return dropTargets().entries.firstOrNull { it.value.contains(cardCenter) }?.key
+    }
 
     fun release() {
+        val dockTarget = hoverTargetNow()
         val dx = dragOffset.value.x
         val dy = dragOffset.value.y
-        when (dragOutcome(dx, dy, thresholdPx)) {
-            DragOutcome.Keep -> scope.launch {
-                dragOffset.animateTo(
-                    Offset(dx * FLY_OUT_MULTIPLIER, dy),
-                    spring(dampingRatio = FLY_OUT_DAMPING_RATIO, stiffness = FLY_OUT_STIFFNESS)
-                )
-                onKeep()
+        when {
+            dockTarget != null -> {
+                hoveredTarget = dockTarget
+                val targetRect = dropTargets()[dockTarget]
+                scope.launch {
+                    // 飞向 Dock 圆心(把目标圆心换算回堆叠坐标系)并缩小淡出
+                    if (targetRect != null) {
+                        val destination = targetRect.center - stackCenter
+                        dragOffset.animateTo(
+                            destination,
+                            spring(dampingRatio = FLY_OUT_DAMPING_RATIO, stiffness = FLY_OUT_STIFFNESS)
+                        )
+                        riseScale.animateTo(DOCK_DROP_SCALE, tween(RISE_DURATION_MILLIS))
+                    }
+                    onHoverChange(null)
+                    onMove(dockTarget)
+                }
             }
-            DragOutcome.Fallback -> {
-                scope.launch { dragOffset.animateTo(Offset.Zero, spring()) }
-                onFallback()
+            else -> when (dragOutcome(dx, dy, thresholdPx)) {
+                DragOutcome.Keep -> scope.launch {
+                    dragOffset.animateTo(
+                        Offset(dx * FLY_OUT_MULTIPLIER, dy),
+                        spring(dampingRatio = FLY_OUT_DAMPING_RATIO, stiffness = FLY_OUT_STIFFNESS)
+                    )
+                    onKeep()
+                }
+                DragOutcome.Fallback -> {
+                    scope.launch { dragOffset.animateTo(Offset.Zero, spring()) }
+                    onFallback()
+                }
+                DragOutcome.SnapBack -> scope.launch { dragOffset.animateTo(Offset.Zero, spring()) }
             }
-            DragOutcome.SnapBack -> scope.launch { dragOffset.animateTo(Offset.Zero, spring()) }
         }
     }
 
-    Box(modifier = modifier) {
+    Box(
+        modifier = modifier.onGloballyPositioned { coords ->
+            stackCenter = coords.boundsInRoot().center
+        }
+    ) {
         // 提示层:透明度与拖动联动,只在对应方向拖动时浮现(alpha ∝ |位移|/阈值)
         DirectionHint(
             label = stringResource(R.string.quicksort_hint_keep),
@@ -165,6 +212,13 @@ internal fun PhotoCardStack(
                     dragOffset = dragOffset,
                     onFallback = onFallback,
                     onRelease = ::release,
+                    onDragPositionChanged = {
+                        val target = hoverTargetNow()
+                        if (target != hoveredTarget) {
+                            hoveredTarget = target
+                            onHoverChange(target)
+                        }
+                    },
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
@@ -184,6 +238,7 @@ private fun StackedCard(
     dragOffset: Animatable<Offset, *>,
     onRelease: () -> Unit,
     onFallback: () -> Unit,
+    onDragPositionChanged: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isHead = depth == 0
@@ -216,6 +271,7 @@ private fun StackedCard(
                                 change.consume()
                                 scope.launch {
                                     dragOffset.snapTo(dragOffset.value + dragAmount)
+                                    onDragPositionChanged()
                                 }
                             }
                         }

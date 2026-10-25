@@ -37,6 +37,7 @@ import com.example.pixcase.ui.feature.albums.AlbumDetailScreen
 import com.example.pixcase.ui.feature.albums.AlbumsScreen
 import com.example.pixcase.ui.feature.albums.SmartAlbumDetailScreen
 import com.example.pixcase.ui.feature.quicksort.QuickSortRoute
+import com.example.pixcase.ui.feature.quicksort.QuickSortTargetPickerRoute
 import com.example.pixcase.ui.feature.timeline.TimelineRoute
 import com.example.pixcase.ui.feature.viewer.ViewerRoute
 
@@ -62,6 +63,11 @@ private object Routes {
     const val QUICK_SORT = "quicksort/{$QUICK_SORT_ARG}"
 
     fun quickSort(albumId: Long): String = "quicksort/$albumId"
+
+    /** 快速整理的目标相册选择器。 */
+    const val QUICK_SORT_TARGETS = "quicksort/{$QUICK_SORT_ARG}/targets"
+
+    fun quickSortTargets(albumId: Long): String = "quicksort/$albumId/targets"
 
     const val SEARCH = "search"
     const val FAVORITES = "favorites"
@@ -183,8 +189,20 @@ private fun NavGraphBuilder.albumNavEntries(navController: NavHostController) {
         arguments = listOf(
             navArgument(Routes.QUICK_SORT_ARG) { type = NavType.LongType }
         )
+    ) { entry ->
+        val albumId = entry.arguments?.getLong(Routes.QUICK_SORT_ARG) ?: 0L
+        QuickSortRoute(
+            onBack = { navController.popBackStack() },
+            onOpenTargets = { navController.navigate(Routes.quickSortTargets(albumId)) }
+        )
+    }
+    composable(
+        route = Routes.QUICK_SORT_TARGETS,
+        arguments = listOf(
+            navArgument(Routes.QUICK_SORT_ARG) { type = NavType.LongType }
+        )
     ) {
-        QuickSortRoute(onBack = { navController.popBackStack() })
+        QuickSortTargetPickerRoute(onBack = { navController.popBackStack() })
     }
 }
 

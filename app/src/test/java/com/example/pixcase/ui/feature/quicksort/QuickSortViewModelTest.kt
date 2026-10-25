@@ -48,6 +48,8 @@ class QuickSortViewModelTest {
         coEvery { photoRepository.photosByIds(any()) } returns emptyList()
         coEvery { quickSortRepository.recordKeep(any(), any(), any()) } returns Unit
         coEvery { quickSortRepository.recordSkip(any(), any(), any()) } returns Unit
+        // dockAlbums 的 combine 在属性初始化时即调用 observeTargets(Flow 工厂调用,非收集)
+        every { quickSortRepository.observeTargets(any()) } returns flowOf(emptyList())
         every { albumsRepository.observeUserAlbums() } returns flowOf(
             listOf(
                 album(id = 1L, name = "Source"),

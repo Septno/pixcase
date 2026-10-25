@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -46,14 +47,18 @@ import com.example.pixcase.data.model.MediaPhoto
  * 配置阶段(选择/继续)只是 Sheet / Dialog,Active 才是真正的整理界面;取消配置即返回详情页。
  */
 @Composable
-fun QuickSortRoute(onBack: () -> Unit, viewModel: QuickSortViewModel = hiltViewModel()) {
+fun QuickSortRoute(onBack: () -> Unit, onOpenTargets: () -> Unit, viewModel: QuickSortViewModel = hiltViewModel()) {
     val stage by viewModel.stage.collectAsStateWithLifecycle()
     val albumName by viewModel.albumName.collectAsStateWithLifecycle()
     val candidateAlbums by viewModel.candidateAlbums.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
     val pendingPhotos by viewModel.pendingPhotos.collectAsStateWithLifecycle()
+    val dockAlbums by viewModel.dockAlbums.collectAsStateWithLifecycle()
     var showRestartConfirm by remember { mutableStateOf(false) }
     var showFallback by remember { mutableStateOf(false) }
+    // Dock 拖放:条目坐标矩形(手势线程外维护,主线程读写无并发)与当前悬停目标
+    val dockRects = remember { mutableMapOf<Long, Rect>() }
+    var hoverTarget by remember { mutableStateOf<Long?>(null) }
 
     when (stage) {
         QuickSortStage.Loading -> Unit
@@ -66,48 +71,106 @@ fun QuickSortRoute(onBack: () -> Unit, viewModel: QuickSortViewModel = hiltViewM
             onStart = viewModel::startSession,
             onDismiss = onBack
         )
-        QuickSortStage.Active -> {
-            QuickSortScreen(
-                albumName = albumName,
-                processedCount = session?.processedCount ?: 0,
-                totalCount = session?.totalCount ?: 0,
-                pendingPhotos = pendingPhotos,
-                onExit = { currentIndex -> viewModel.exit(currentIndex, onBack) },
-                onRequestRestart = { showRestartConfirm = true },
-                onKeep = viewModel::keepCurrent,
-                onFallback = { showFallback = true }
-            )
-            if (showRestartConfirm) {
-                RestartConfirmDialog(
-                    processedCount = session?.processedCount ?: 0,
-                    onConfirm = {
-                        showRestartConfirm = false
-                        viewModel.restartSession()
-                    },
-                    onDismiss = { showRestartConfirm = false }
-                )
-            }
-            if (showFallback) {
-                FallbackSheet(
-                    photo = pendingPhotos.firstOrNull(),
-                    onKeep = {
-                        showFallback = false
-                        viewModel.keepCurrent()
-                    },
-                    onSkip = {
-                        showFallback = false
-                        viewModel.skipCurrent()
-                    },
-                    onDismiss = { showFallback = false }
-                )
-            }
-        }
+        QuickSortStage.Active -> QuickSortActive(
+            viewModel = viewModel,
+            albumName = albumName,
+            session = session,
+            pendingPhotos = pendingPhotos,
+            dockAlbums = dockAlbums,
+            onBack = onBack,
+            onOpenTargets = onOpenTargets
+        )
+    }
+}
+
+/** Active 阶段:整理界面 + ⟲ 确认 / 兜底 Sheet + Dock 拖放状态。 */
+@Composable
+private fun QuickSortActive(
+    viewModel: QuickSortViewModel,
+    albumName: String,
+    session: com.example.pixcase.data.db.entity.QuickSortSessionEntity?,
+    pendingPhotos: List<MediaPhoto>,
+    dockAlbums: List<DockAlbum>,
+    onBack: () -> Unit,
+    onOpenTargets: () -> Unit
+) {
+    var showRestartConfirm by remember { mutableStateOf(false) }
+    var showFallback by remember { mutableStateOf(false) }
+    // Dock 拖放:条目坐标矩形与当前悬停目标(主线程读写,无并发)
+    val dockRects = remember { mutableMapOf<Long, Rect>() }
+    var hoverTarget by remember { mutableStateOf<Long?>(null) }
+
+    QuickSortScreen(
+        albumName = albumName,
+        processedCount = session?.processedCount ?: 0,
+        totalCount = session?.totalCount ?: 0,
+        pendingPhotos = pendingPhotos,
+        dockAlbums = dockAlbums,
+        hoverTarget = hoverTarget,
+        dockRects = dockRects,
+        onHoverTargetChange = { hoverTarget = it },
+        onExit = { currentIndex -> viewModel.exit(currentIndex, onBack) },
+        onRequestRestart = { showRestartConfirm = true },
+        onKeep = viewModel::keepCurrent,
+        onFallback = { showFallback = true },
+        onMove = viewModel::moveCurrentTo,
+        onAddTarget = onOpenTargets
+    )
+    QuickSortActiveDialogs(
+        showRestartConfirm = showRestartConfirm,
+        showFallback = showFallback,
+        processedCount = session?.processedCount ?: 0,
+        fallbackPhoto = pendingPhotos.firstOrNull(),
+        onRestartConfirmed = {
+            showRestartConfirm = false
+            viewModel.restartSession()
+        },
+        onRestartDismissed = { showRestartConfirm = false },
+        onFallbackKeep = {
+            showFallback = false
+            viewModel.keepCurrent()
+        },
+        onFallbackSkip = {
+            showFallback = false
+            viewModel.skipCurrent()
+        },
+        onFallbackDismissed = { showFallback = false }
+    )
+}
+
+/** Active 阶段的两个浮层:⟲ 二次确认 与 兜底 Sheet。 */
+@Composable
+private fun QuickSortActiveDialogs(
+    showRestartConfirm: Boolean,
+    showFallback: Boolean,
+    processedCount: Int,
+    fallbackPhoto: MediaPhoto?,
+    onRestartConfirmed: () -> Unit,
+    onRestartDismissed: () -> Unit,
+    onFallbackKeep: () -> Unit,
+    onFallbackSkip: () -> Unit,
+    onFallbackDismissed: () -> Unit
+) {
+    if (showRestartConfirm) {
+        RestartConfirmDialog(
+            processedCount = processedCount,
+            onConfirm = onRestartConfirmed,
+            onDismiss = onRestartDismissed
+        )
+    }
+    if (showFallback) {
+        FallbackSheet(
+            photo = fallbackPhoto,
+            onKeep = onFallbackKeep,
+            onSkip = onFallbackSkip,
+            onDismiss = onFallbackDismissed
+        )
     }
 }
 
 /**
  * 整理界面:顶栏 = ←(退出自动保存)+「相册名 · 快速整理」+ 进度 N/M + ⟲(二次确认);
- * 正文 = 卡片堆叠(队列排空后显示完成态)。
+ * 正文 = 卡片堆叠(队列排空后显示完成态)+ 底部目标相册 Dock。
  */
 @Composable
 private fun QuickSortScreen(
@@ -115,10 +178,16 @@ private fun QuickSortScreen(
     processedCount: Int,
     totalCount: Int,
     pendingPhotos: List<MediaPhoto>,
+    dockAlbums: List<DockAlbum>,
+    hoverTarget: Long?,
+    dockRects: MutableMap<Long, Rect>,
+    onHoverTargetChange: (Long?) -> Unit,
     onExit: (Int) -> Unit,
     onRequestRestart: () -> Unit,
     onKeep: () -> Unit,
-    onFallback: () -> Unit
+    onFallback: () -> Unit,
+    onMove: (Long) -> Unit,
+    onAddTarget: () -> Unit
 ) {
     // 退出保存的「当前位置」= 已处理张数(队列随决策收缩,下标语义等价于进度)
     val currentIndex = processedCount
@@ -145,9 +214,18 @@ private fun QuickSortScreen(
                 photos = pendingPhotos,
                 onKeep = onKeep,
                 onFallback = onFallback,
+                onMove = onMove,
+                dropTargets = { dockRects.toMap() },
+                onHoverChange = onHoverTargetChange,
                 modifier = Modifier.weight(1f)
             )
         }
+        AlbumDock(
+            albums = dockAlbums,
+            highlightedId = hoverTarget,
+            onItemBoundsChanged = { id, rect -> dockRects[id] = rect },
+            onAddTarget = onAddTarget
+        )
     }
 }
 

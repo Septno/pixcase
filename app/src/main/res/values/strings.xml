@@ -95,6 +95,13 @@
     <string name="quicksort_restart_confirm_title">Restart this session?</string>
     <string name="quicksort_restart_confirm_text">The %1$d processed photos will re-enter the sorting queue. Target album settings will be kept.</string>
     <string name="quicksort_restart_confirm_ok">Confirm restart</string>
+    <string name="quicksort_dock_add">Manage target albums</string>
+    <string name="quicksort_target_picker_title">Manage target albums</string>
+    <string name="quicksort_target_picker_save">Save</string>
+    <string name="quicksort_target_picker_selected">%1$d of %2$d selected</string>
+    <string name="quicksort_targets_empty_warning">No target albums — only keep and delete will be available</string>
+    <string name="msg_album_duplicate">Album already exists</string>
+    <string name="msg_album_invalid">Album name can\'t be empty or too long</string>
     <string name="delete_confirm_title">Delete photos?</string>
     <string name="delete_confirm_ok">Delete</string>
     <plurals name="selection_count">
