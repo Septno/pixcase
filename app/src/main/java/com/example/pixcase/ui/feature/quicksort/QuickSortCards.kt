@@ -84,7 +84,10 @@ internal enum class DragOutcome {
     /** 左划超阈值:保留,卡片左飞。 */
     Keep,
 
-    /** 右划 / 纵向超阈值:弹回并弹底部 Sheet 兜底(长按同入口)。 */
+    /** 上划超阈值:删除(双重语义在仓库层分支),卡片上飞。 */
+    Trash,
+
+    /** 右划 / 下划超阈值:弹回并弹底部 Sheet 兜底(长按同入口)。 */
     Fallback,
 
     /** 未过阈值:弹回原位。 */
@@ -95,9 +98,10 @@ internal enum class DragOutcome {
 internal fun hintAlpha(delta: Float, thresholdPx: Float): Float =
     if (thresholdPx <= 0f) 0f else (abs(delta) / thresholdPx).coerceIn(0f, 1f)
 
-/** 松手去向判定(纯函数便于单测):左划 Keep,右划/纵向 Fallback,其余 SnapBack。 */
+/** 松手去向判定(纯函数便于单测):左划 Keep、上划 Trash、右划/下划 Fallback,其余弹回。 */
 internal fun dragOutcome(dx: Float, dy: Float, thresholdPx: Float): DragOutcome = when {
     dx < -thresholdPx -> DragOutcome.Keep
+    dy < -thresholdPx -> DragOutcome.Trash
     abs(dx) > thresholdPx || abs(dy) > thresholdPx -> DragOutcome.Fallback
     else -> DragOutcome.SnapBack
 }
@@ -113,6 +117,7 @@ internal fun dragOutcome(dx: Float, dy: Float, thresholdPx: Float): DragOutcome 
 internal fun PhotoCardStack(
     photos: List<MediaPhoto>,
     onKeep: () -> Unit,
+    onTrash: () -> Unit,
     onFallback: () -> Unit,
     onMove: (Long) -> Unit,
     dropTargets: () -> Map<Long, Rect>,
@@ -170,6 +175,13 @@ internal fun PhotoCardStack(
                         spring(dampingRatio = FLY_OUT_DAMPING_RATIO, stiffness = FLY_OUT_STIFFNESS)
                     )
                     onKeep()
+                }
+                DragOutcome.Trash -> scope.launch {
+                    dragOffset.animateTo(
+                        Offset(dx, dy * FLY_OUT_MULTIPLIER),
+                        spring(dampingRatio = FLY_OUT_DAMPING_RATIO, stiffness = FLY_OUT_STIFFNESS)
+                    )
+                    onTrash()
                 }
                 DragOutcome.Fallback -> {
                     scope.launch { dragOffset.animateTo(Offset.Zero, spring()) }

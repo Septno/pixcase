@@ -1,27 +1,45 @@
 package com.example.pixcase.ui.feature.quicksort
 
+import android.content.IntentSender
+import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.pixcase.R
 import com.example.pixcase.data.db.entity.AlbumEntity
 import com.example.pixcase.data.db.entity.QuickSortSessionEntity
 import com.example.pixcase.data.model.MediaPhoto
 import com.example.pixcase.data.repository.AlbumsRepository
 import com.example.pixcase.data.repository.PhotoRepository
 import com.example.pixcase.data.repository.QuickSortRepository
+import com.example.pixcase.data.repository.TrashOutcome
 import com.example.pixcase.data.repository.orderByIds
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** Dock 上的一个目标相册条目。 */
 data class DockAlbum(val id: Long, val name: String, val coverMediaId: Long?)
+
+/** 快速整理的一次性事件:需要 Activity 上下文的系统确认框、Snackbar 反馈(含可撤销)。 */
+sealed interface QuickSortEvent {
+    /** API 30+ 真删除:启动系统确认框;同意后回调 ViewModel.onTrashConsentApproved。 */
+    data class LaunchTrashConsent(val sender: IntentSender) : QuickSortEvent
+
+    /** 仅解绑分支的撤销条目:Snackbar 带「撤销」按钮,5 秒内可回。 */
+    data class UndoableUnbind(val mediaId: Long) : QuickSortEvent
+
+    /** 普通反馈消息。 */
+    data class Message(@StringRes val resId: Int) : QuickSortEvent
+}
 
 /**
  * 快速整理(阶段 3.5)入口与配置流的阶段状态:
@@ -86,6 +104,12 @@ class QuickSortViewModel @Inject constructor(
     private val _stage = MutableStateFlow<QuickSortStage>(QuickSortStage.Loading)
     val stage: StateFlow<QuickSortStage> = _stage
 
+    private val _events = Channel<QuickSortEvent>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
+
+    /** 30+ 系统确认框在途的照片(同意 → finalize,拒绝 → 照片留在队首)。 */
+    private var pendingConsentMediaId: Long? = null
+
     init {
         viewModelScope.launch {
             val existing = quickSortRepository.session(albumId)
@@ -143,6 +167,62 @@ class QuickSortViewModel @Inject constructor(
     /** 拖到 Dock:移出当前相册并加入目标相册(decision + 两侧关联同事务,封面顺延随仓库规则)。 */
     fun moveCurrentTo(targetAlbumId: Long) {
         decide { head -> quickSortRepository.recordMove(albumId, head.id, targetAlbumId, System.currentTimeMillis()) }
+    }
+
+    /**
+     * 上划删除(计划 § 3.5.4 双重语义):按所属相册数在仓库层分支。
+     * 仅解绑 → 队列推进 + 撤销条目;真删除完成 → 队列推进 + 结果提示;
+     * 30+ 系统确认 → 队列不动(拒绝时照片留在队首),发 LaunchTrashConsent。
+     */
+    fun trashCurrent() {
+        val head = _pendingPhotos.value.firstOrNull() ?: return
+        viewModelScope.launch {
+            when (val outcome = quickSortRepository.trashFromAlbum(albumId, head.id, System.currentTimeMillis())) {
+                is TrashOutcome.Unbound -> {
+                    _pendingPhotos.value = _pendingPhotos.value.drop(1)
+                    _events.send(QuickSortEvent.UndoableUnbind(outcome.mediaId))
+                }
+                is TrashOutcome.Deleted -> {
+                    _pendingPhotos.value = _pendingPhotos.value.drop(1)
+                    val messageRes = if (outcome.permanent) {
+                        R.string.quicksort_msg_deleted_permanent
+                    } else {
+                        R.string.quicksort_msg_deleted_trash
+                    }
+                    _events.send(QuickSortEvent.Message(messageRes))
+                }
+                is TrashOutcome.NeedsConsent -> {
+                    pendingConsentMediaId = head.id
+                    _events.send(QuickSortEvent.LaunchTrashConsent(outcome.sender))
+                }
+            }
+        }
+    }
+
+    /** 撤销「仅解绑」删除:恢复关联 + 删决策 + 进度回退,并重载队列(照片回到队首)。 */
+    fun undoUnbind(mediaId: Long) {
+        viewModelScope.launch {
+            quickSortRepository.undoUnbind(albumId, mediaId, System.currentTimeMillis())
+            reloadPending()
+        }
+    }
+
+    /** 30+ 系统确认同意:Room 关联清理 + decision + 进度,队列推进。 */
+    fun onTrashConsentApproved() {
+        val mediaId = pendingConsentMediaId ?: return
+        pendingConsentMediaId = null
+        viewModelScope.launch {
+            photoRepository.onSystemDeleteApproved(listOf(mediaId))
+            quickSortRepository.finalizeConsentedTrash(albumId, mediaId, System.currentTimeMillis())
+            _pendingPhotos.value = _pendingPhotos.value.filterNot { it.id == mediaId }
+            _events.send(QuickSortEvent.Message(R.string.quicksort_msg_deleted_trash))
+        }
+    }
+
+    /** 30+ 系统确认拒绝:照片留在队首,仅提示。 */
+    fun onTrashConsentDenied() {
+        pendingConsentMediaId = null
+        viewModelScope.launch { _events.send(QuickSortEvent.Message(R.string.quicksort_msg_trash_cancelled)) }
     }
 
     private fun decide(record: suspend (MediaPhoto) -> Unit) {

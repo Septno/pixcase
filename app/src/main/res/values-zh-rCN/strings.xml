@@ -102,6 +102,11 @@
     <string name="quicksort_targets_empty_warning">仅保留 / 删除可用</string>
     <string name="msg_album_duplicate">相册已存在</string>
     <string name="msg_album_invalid">相册名不能为空或过长</string>
+    <string name="quicksort_undo">撤销</string>
+    <string name="quicksort_msg_unbound">已移出相册</string>
+    <string name="quicksort_msg_deleted_trash">已删除,可在系统相册「最近删除」中恢复</string>
+    <string name="quicksort_msg_deleted_permanent">已永久删除</string>
+    <string name="quicksort_msg_trash_cancelled">已取消删除</string>
     <string name="delete_confirm_title">删除这些照片?</string>
     <string name="delete_confirm_ok">删除</string>
     <plurals name="selection_count">

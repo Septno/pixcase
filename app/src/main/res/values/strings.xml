@@ -102,6 +102,11 @@
     <string name="quicksort_targets_empty_warning">No target albums — only keep and delete will be available</string>
     <string name="msg_album_duplicate">Album already exists</string>
     <string name="msg_album_invalid">Album name can\'t be empty or too long</string>
+    <string name="quicksort_undo">Undo</string>
+    <string name="quicksort_msg_unbound">Removed from album</string>
+    <string name="quicksort_msg_deleted_trash">Deleted. Restore it from Recently deleted in the system gallery.</string>
+    <string name="quicksort_msg_deleted_permanent">Permanently deleted</string>
+    <string name="quicksort_msg_trash_cancelled">Delete cancelled</string>
     <string name="delete_confirm_title">Delete photos?</string>
     <string name="delete_confirm_ok">Delete</string>
     <plurals name="selection_count">

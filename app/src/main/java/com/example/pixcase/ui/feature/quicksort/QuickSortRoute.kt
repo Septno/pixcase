@@ -1,6 +1,10 @@
 package com.example.pixcase.ui.feature.quicksort
 
+import android.app.Activity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,10 +26,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -99,46 +109,92 @@ private fun QuickSortActive(
     // Dock 拖放:条目坐标矩形与当前悬停目标(主线程读写,无并发)
     val dockRects = remember { mutableMapOf<Long, Rect>() }
     var hoverTarget by remember { mutableStateOf<Long?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    QuickSortEventsEffect(viewModel, snackbarHostState)
 
-    QuickSortScreen(
-        albumName = albumName,
-        processedCount = session?.processedCount ?: 0,
-        totalCount = session?.totalCount ?: 0,
-        pendingPhotos = pendingPhotos,
-        dockAlbums = dockAlbums,
-        hoverTarget = hoverTarget,
-        dockRects = dockRects,
-        onHoverTargetChange = { hoverTarget = it },
-        onExit = { currentIndex -> viewModel.exit(currentIndex, onBack) },
-        onRequestRestart = { showRestartConfirm = true },
-        onKeep = viewModel::keepCurrent,
-        onFallback = { showFallback = true },
-        onMove = viewModel::moveCurrentTo,
-        onAddTarget = onOpenTargets
-    )
-    QuickSortActiveDialogs(
-        showRestartConfirm = showRestartConfirm,
-        showFallback = showFallback,
-        processedCount = session?.processedCount ?: 0,
-        fallbackPhoto = pendingPhotos.firstOrNull(),
-        onRestartConfirmed = {
-            showRestartConfirm = false
-            viewModel.restartSession()
-        },
-        onRestartDismissed = { showRestartConfirm = false },
-        onFallbackKeep = {
-            showFallback = false
-            viewModel.keepCurrent()
-        },
-        onFallbackSkip = {
-            showFallback = false
-            viewModel.skipCurrent()
-        },
-        onFallbackDismissed = { showFallback = false }
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        QuickSortScreen(
+            albumName = albumName,
+            processedCount = session?.processedCount ?: 0,
+            totalCount = session?.totalCount ?: 0,
+            pendingPhotos = pendingPhotos,
+            dockAlbums = dockAlbums,
+            hoverTarget = hoverTarget,
+            dockRects = dockRects,
+            onHoverTargetChange = { hoverTarget = it },
+            onExit = { currentIndex -> viewModel.exit(currentIndex, onBack) },
+            onRequestRestart = { showRestartConfirm = true },
+            onKeep = viewModel::keepCurrent,
+            onTrash = viewModel::trashCurrent,
+            onFallback = { showFallback = true },
+            onMove = viewModel::moveCurrentTo,
+            onAddTarget = onOpenTargets
+        )
+        QuickSortActiveDialogs(
+            showRestartConfirm = showRestartConfirm,
+            showFallback = showFallback,
+            processedCount = session?.processedCount ?: 0,
+            fallbackPhoto = pendingPhotos.firstOrNull(),
+            onRestartConfirmed = {
+                showRestartConfirm = false
+                viewModel.restartSession()
+            },
+            onRestartDismissed = { showRestartConfirm = false },
+            onFallbackKeep = {
+                showFallback = false
+                viewModel.keepCurrent()
+            },
+            onFallbackSkip = {
+                showFallback = false
+                viewModel.skipCurrent()
+            },
+            onFallbackTrash = {
+                showFallback = false
+                viewModel.trashCurrent()
+            },
+            onFallbackDismissed = { showFallback = false }
+        )
+        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
+    }
 }
 
-/** Active 阶段的两个浮层:⟲ 二次确认 与 兜底 Sheet。 */
+/**
+ * 一次性事件接线:30+ 真删除的系统确认框(同意 finalize / 拒绝留队首)、
+ * 「仅解绑」的撤销 Snackbar(5 秒内可回)、普通消息提示。
+ */
+@Composable
+private fun QuickSortEventsEffect(viewModel: QuickSortViewModel, snackbarHostState: SnackbarHostState) {
+    val context = LocalContext.current
+    val trashConsentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewModel.onTrashConsentApproved()
+        } else {
+            viewModel.onTrashConsentDenied()
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is QuickSortEvent.LaunchTrashConsent ->
+                    trashConsentLauncher.launch(IntentSenderRequest.Builder(event.sender).build())
+                is QuickSortEvent.UndoableUnbind -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = context.getString(R.string.quicksort_msg_unbound),
+                        actionLabel = context.getString(R.string.quicksort_undo),
+                        duration = SnackbarDuration.Short
+                    )
+                    if (result == SnackbarResult.ActionPerformed) viewModel.undoUnbind(event.mediaId)
+                }
+                is QuickSortEvent.Message ->
+                    snackbarHostState.showSnackbar(context.getString(event.resId))
+            }
+        }
+    }
+}
+
+/** Active 阶段的两个浮层:⟲ 二次确认 与 兜底 Sheet(保留 / 跳过 / 删除)。 */
 @Composable
 private fun QuickSortActiveDialogs(
     showRestartConfirm: Boolean,
@@ -149,6 +205,7 @@ private fun QuickSortActiveDialogs(
     onRestartDismissed: () -> Unit,
     onFallbackKeep: () -> Unit,
     onFallbackSkip: () -> Unit,
+    onFallbackTrash: () -> Unit,
     onFallbackDismissed: () -> Unit
 ) {
     if (showRestartConfirm) {
@@ -163,6 +220,7 @@ private fun QuickSortActiveDialogs(
             photo = fallbackPhoto,
             onKeep = onFallbackKeep,
             onSkip = onFallbackSkip,
+            onTrash = onFallbackTrash,
             onDismiss = onFallbackDismissed
         )
     }
@@ -185,6 +243,7 @@ private fun QuickSortScreen(
     onExit: (Int) -> Unit,
     onRequestRestart: () -> Unit,
     onKeep: () -> Unit,
+    onTrash: () -> Unit,
     onFallback: () -> Unit,
     onMove: (Long) -> Unit,
     onAddTarget: () -> Unit
@@ -213,6 +272,7 @@ private fun QuickSortScreen(
             PhotoCardStack(
                 photos = pendingPhotos,
                 onKeep = onKeep,
+                onTrash = onTrash,
                 onFallback = onFallback,
                 onMove = onMove,
                 dropTargets = { dockRects.toMap() },
@@ -299,7 +359,13 @@ private fun RestartConfirmDialog(processedCount: Int, onConfirm: () -> Unit, onD
 
 /** 兜底 Sheet(下划/右划/长按入口):当前照片的保留 / 跳过;删除与移动随后续任务接入。 */
 @Composable
-private fun FallbackSheet(photo: MediaPhoto?, onKeep: () -> Unit, onSkip: () -> Unit, onDismiss: () -> Unit) {
+private fun FallbackSheet(
+    photo: MediaPhoto?,
+    onKeep: () -> Unit,
+    onSkip: () -> Unit,
+    onTrash: () -> Unit,
+    onDismiss: () -> Unit
+) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
             Text(
@@ -319,6 +385,15 @@ private fun FallbackSheet(photo: MediaPhoto?, onKeep: () -> Unit, onSkip: () -> 
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(R.string.quicksort_fallback_skip))
+            }
+            TextButton(
+                onClick = onTrash,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = stringResource(R.string.action_delete),
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
     }

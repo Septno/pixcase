@@ -1,5 +1,7 @@
 package com.example.pixcase.data.repository
 
+import android.content.IntentSender
+import android.os.Build
 import androidx.room.withTransaction
 import com.example.pixcase.data.db.AppDatabase
 import com.example.pixcase.data.db.dao.AlbumPhotoDao
@@ -9,21 +11,35 @@ import com.example.pixcase.data.db.dao.QuickSortSessionTargetDao
 import com.example.pixcase.data.db.entity.QuickSortDecisionEntity
 import com.example.pixcase.data.db.entity.QuickSortSessionEntity
 import com.example.pixcase.data.db.entity.QuickSortSessionTargetEntity
+import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+
+/** [QuickSortRepository.trashFromAlbum] 的三分支结果,UI 据此决定 Snackbar / 系统确认 / 撤销。 */
+sealed interface TrashOutcome {
+    /** 仅解绑(照片还在其他相册 / 系统相册),可撤销。 */
+    data class Unbound(val mediaId: Long) : TrashOutcome
+
+    /** 真删除已完成:permanent = true 表示 29 及以下无系统回收站的永久删除。 */
+    data class Deleted(val permanent: Boolean) : TrashOutcome
+
+    /** API 30+:等待系统确认框,同意后回调 finalizeConsentedTrash。 */
+    data class NeedsConsent(val sender: IntentSender) : TrashOutcome
+}
 
 /**
  * 快速整理(阶段 3.5)的会话与决策仓库,规则见计划 § 3.5.3:
  *
  * - 每个相册至多一个 session(主键 = albumId);目标相册列表带顺序,独立表存储(陷阱 5);
  * - 决策发生时立即落库:**decision + album_photo 关联变更同事务**(真删除进回收站的语义
- *   在任务 9 接入,此处只落 KEEP / SKIP / MOVE);
+ *   在 [trashFromAlbum],KEEP / SKIP / MOVE 见各自方法);
  * - 「继续上次」= 相册顺序流过滤掉已决策的 mediaId;「从头开始」= 只清 decisions 与进度
  *   计数,不删照片关联;
  * - 完成态:processedCount ≥ totalCount 时置 isCompleted。
  */
+@Suppress("LongParameterList") // 事务壳(appDatabase)+ 三个 quicksort DAO + 相册/照片仓库,打包成对象反而模糊事务边界
 @Singleton
 class QuickSortRepository @Inject constructor(
     private val appDatabase: AppDatabase,
@@ -31,7 +47,8 @@ class QuickSortRepository @Inject constructor(
     private val targetDao: QuickSortSessionTargetDao,
     private val decisionDao: QuickSortDecisionDao,
     private val albumPhotoDao: AlbumPhotoDao,
-    private val albumsRepository: AlbumsRepository
+    private val albumsRepository: AlbumsRepository,
+    private val photoRepository: PhotoRepository
 ) {
     fun observeSession(albumId: Long): Flow<QuickSortSessionEntity?> = sessionDao.observeByAlbum(albumId)
 
@@ -103,6 +120,63 @@ class QuickSortRepository @Inject constructor(
         }
     }
 
+    /**
+     * 上划删除的双重语义(计划 § 3.5.4):按照片所属相册数分支 ——
+     * - 仅属于当前相册:MediaStore 真删除(30+ 走系统确认框 → [TrashOutcome.NeedsConsent],
+     *   同意后回调 [finalizeConsentedTrash];29 及以下直接删,无系统回收站即永久删);
+     * - 同时属于其他相册:仅解绑当前相册关联,原图不动(返回 [TrashOutcome.Unbound],可撤销)。
+     *
+     * 顺序保证:MediaStore 删除抛异常时,Room 侧(decision / 关联)一律不动;
+     * 真删除成功后的关联清理由 PhotoRepository.deletePhotos 的 Completed 分支完成。
+     */
+    suspend fun trashFromAlbum(albumId: Long, mediaId: Long, now: Long): TrashOutcome {
+        return if (albumPhotoDao.countAlbumsOf(mediaId) > 1) {
+            appDatabase.withTransaction {
+                decisionDao.insert(QuickSortDecisionEntity(albumId, mediaId, DECISION_TRASH, now))
+                albumsRepository.removePhoto(albumId, mediaId, now)
+                bumpProgress(albumId, now)
+            }
+            TrashOutcome.Unbound(mediaId)
+        } else {
+            when (val outcome = photoRepository.deletePhotos(listOf(mediaId))) {
+                is MediaStorePhotoWriter.DeleteOutcome.NeedsConsent -> TrashOutcome.NeedsConsent(outcome.sender)
+                is MediaStorePhotoWriter.DeleteOutcome.Completed -> {
+                    appDatabase.withTransaction {
+                        decisionDao.insert(QuickSortDecisionEntity(albumId, mediaId, DECISION_TRASH, now))
+                        bumpProgress(albumId, now)
+                    }
+                    TrashOutcome.Deleted(permanent = Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
+                }
+            }
+        }
+    }
+
+    /** 30+ 系统确认框同意后收尾:Room 关联已被 onSystemDeleteApproved 清掉,这里补 decision + 进度。 */
+    suspend fun finalizeConsentedTrash(albumId: Long, mediaId: Long, now: Long) {
+        appDatabase.withTransaction {
+            decisionDao.insert(QuickSortDecisionEntity(albumId, mediaId, DECISION_TRASH, now))
+            bumpProgress(albumId, now)
+        }
+    }
+
+    /** 撤销「仅解绑」分支:删决策、恢复关联、进度回退(照片回到待处理队列头部)。 */
+    suspend fun undoUnbind(albumId: Long, mediaId: Long, now: Long) {
+        appDatabase.withTransaction {
+            decisionDao.delete(albumId, mediaId)
+            albumsRepository.addPhotos(albumId, listOf(mediaId), now)
+            sessionDao.getByAlbum(albumId)?.let { session ->
+                val processed = (session.processedCount - 1).coerceAtLeast(0)
+                sessionDao.update(
+                    session.copy(
+                        processedCount = processed,
+                        isCompleted = processed >= session.totalCount,
+                        lastActiveAt = now
+                    )
+                )
+            }
+        }
+    }
+
     /** 从头开始:只清 decisions 与进度计数,不删照片关联(计划 § 3.5.3)。 */
     suspend fun resetSession(albumId: Long, now: Long) {
         appDatabase.withTransaction {
@@ -153,6 +227,7 @@ class QuickSortRepository @Inject constructor(
     private companion object {
         const val DECISION_KEEP = "KEEP"
         const val DECISION_SKIP = "SKIP"
+        const val DECISION_TRASH = "TRASH"
         const val DECISION_MOVE_TO_PREFIX = "MOVE_TO_"
     }
 }

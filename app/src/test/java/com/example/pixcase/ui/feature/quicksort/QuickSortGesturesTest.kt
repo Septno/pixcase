@@ -23,9 +23,12 @@ class QuickSortGesturesTest {
     }
 
     @Test
-    fun `vertical swipe beyond threshold opens fallback`() {
-        // 上划是删除方向(执行语义属删除任务),当前同样落兜底
-        assertEquals(DragOutcome.Fallback, dragOutcome(dx = 0f, dy = -threshold - 1f, thresholdPx = threshold))
+    fun `upward swipe beyond threshold trashes`() {
+        assertEquals(DragOutcome.Trash, dragOutcome(dx = 0f, dy = -threshold - 1f, thresholdPx = threshold))
+    }
+
+    @Test
+    fun `downward swipe beyond threshold opens fallback`() {
         assertEquals(DragOutcome.Fallback, dragOutcome(dx = 0f, dy = threshold + 1f, thresholdPx = threshold))
     }
 

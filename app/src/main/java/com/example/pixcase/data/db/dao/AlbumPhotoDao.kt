@@ -47,4 +47,8 @@ interface AlbumPhotoDao {
     /** 全表去重 mediaId(孤儿清扫兜底用)。 */
     @Query("SELECT DISTINCT mediaId FROM album_photo")
     suspend fun allMediaIds(): List<Long>
+
+    /** 照片所属相册数(快速整理上划删除的双重语义判定:仅 1 个 → 真删除,否则仅解绑)。 */
+    @Query("SELECT COUNT(DISTINCT albumId) FROM album_photo WHERE mediaId = :mediaId")
+    suspend fun countAlbumsOf(mediaId: Long): Int
 }

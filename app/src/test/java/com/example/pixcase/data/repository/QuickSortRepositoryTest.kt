@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.pixcase.data.db.AppDatabase
+import com.example.pixcase.data.mediastore.MediaStoreDataSource
+import com.example.pixcase.data.mediastore.MediaStorePhotoWriter
+import io.mockk.mockk
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -27,6 +30,7 @@ class QuickSortRepositoryTest {
     private lateinit var db: AppDatabase
     private lateinit var albumsRepository: AlbumsRepository
     private lateinit var repository: QuickSortRepository
+    private val photoWriter = mockk<MediaStorePhotoWriter>()
 
     @Before
     fun setup() {
@@ -35,13 +39,22 @@ class QuickSortRepositoryTest {
             .allowMainThreadQueries()
             .build()
         albumsRepository = AlbumsRepository(db.albumDao(), db.albumPhotoDao())
+        val photoRepository = PhotoRepository(
+            dataSource = mockk<MediaStoreDataSource>(relaxed = true),
+            writer = photoWriter,
+            favoriteDao = db.favoriteDao(),
+            hiddenDao = db.hiddenDao(),
+            albumPhotoDao = db.albumPhotoDao(),
+            photoTagDao = db.photoTagDao()
+        )
         repository = QuickSortRepository(
             appDatabase = db,
             sessionDao = db.quickSortSessionDao(),
             targetDao = db.quickSortSessionTargetDao(),
             decisionDao = db.quickSortDecisionDao(),
             albumPhotoDao = db.albumPhotoDao(),
-            albumsRepository = albumsRepository
+            albumsRepository = albumsRepository,
+            photoRepository = photoRepository
         )
     }
 
