@@ -27,18 +27,22 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -47,6 +51,7 @@ import coil3.compose.AsyncImage
 import com.example.pixcase.R
 import com.example.pixcase.data.mediastore.MediaSummary
 import com.example.pixcase.data.mediastore.imageContentUri
+import kotlinx.coroutines.launch
 
 /** 智能相册标识:详情路由与数据源分流按它决定。 */
 const val SMART_FAVORITES = "favorites"
@@ -74,8 +79,19 @@ fun AlbumsScreen(
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<AlbumCard?>(null) }
     var deleteTarget by remember { mutableStateOf<AlbumCard?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val snackbarScope = rememberCoroutineScope()
+
+    // 名字非法或重名:仓库层统一拦截(null/false),此处统一提示
+    fun showNameRejected() {
+        snackbarScope.launch {
+            snackbarHostState.showSnackbar(context.getString(R.string.msg_album_name_invalid_or_taken))
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showCreateDialog = true },
@@ -102,11 +118,11 @@ fun AlbumsScreen(
         deleteTarget = deleteTarget,
         onCreate = { name ->
             showCreateDialog = false
-            viewModel.createAlbum(name) { }
+            viewModel.createAlbum(name) { showNameRejected() }
         },
         onRename = { albumId, name ->
             renameTarget = null
-            viewModel.renameAlbum(albumId, name) { }
+            viewModel.renameAlbum(albumId, name) { showNameRejected() }
         },
         onDelete = { albumId ->
             deleteTarget = null

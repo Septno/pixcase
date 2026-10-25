@@ -20,6 +20,14 @@ interface AlbumDao {
     @Query("SELECT * FROM album WHERE id = :id")
     suspend fun findById(id: Long): AlbumEntity?
 
+    /** 同名相册是否已存在(创建 / 重命名查重)。 */
+    @Query("SELECT EXISTS(SELECT 1 FROM album WHERE name = :name)")
+    suspend fun existsName(name: String): Boolean
+
+    /** 重命名查重:同名但不是自己(排除自身那一行)。 */
+    @Query("SELECT * FROM album WHERE name = :name AND id != :excludingAlbumId LIMIT 1")
+    suspend fun findByNameExcluding(name: String, excludingAlbumId: Long): AlbumEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(album: AlbumEntity): Long
 

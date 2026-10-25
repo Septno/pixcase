@@ -51,7 +51,6 @@ import com.example.pixcase.data.db.entity.AlbumEntity
 import com.example.pixcase.data.mediastore.imageContentUri
 import com.example.pixcase.data.repository.AlbumsRepository
 import com.example.pixcase.data.repository.QuickSortRepository
-import com.example.pixcase.data.repository.normalizeAlbumName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,7 +65,7 @@ import kotlinx.coroutines.launch
 sealed interface TargetPickerEvent {
     data object Saved : TargetPickerEvent
     data object EmptySelectionHint : TargetPickerEvent
-    data class InvalidName(val duplicate: Boolean) : TargetPickerEvent
+    data object InvalidName : TargetPickerEvent
 }
 
 /**
@@ -114,21 +113,17 @@ class QuickSortTargetPickerViewModel @Inject constructor(
     }
 
     /**
-     * 就地新建相册并自动勾选;名字非法(空白/超长)或与现有相册重名时发事件,不入库。
+     * 就地新建相册并自动勾选;名字非法(空白/超长)或重名由仓库层统一拦截(null),
+     * 发 InvalidName 事件提示,不入库。
      */
     fun createAlbum(rawName: String) {
-        val name = normalizeAlbumName(rawName) ?: run {
-            _events.value = TargetPickerEvent.InvalidName(duplicate = false)
-            return
-        }
         viewModelScope.launch {
-            val duplicate = albumsRepository.observeUserAlbums().first().any { it.name == name }
-            if (duplicate) {
-                _events.value = TargetPickerEvent.InvalidName(duplicate = true)
-                return@launch
+            val newId = albumsRepository.createAlbum(rawName, System.currentTimeMillis())
+            if (newId == null) {
+                _events.value = TargetPickerEvent.InvalidName
+            } else {
+                _selection.value = _selection.value + newId
             }
-            val newId = albumsRepository.createAlbum(name, System.currentTimeMillis()) ?: return@launch
-            _selection.value = _selection.value + newId
         }
     }
 
@@ -335,8 +330,7 @@ private suspend fun handlePickerEvent(
             onConsume()
         }
         is TargetPickerEvent.InvalidName -> {
-            val messageRes = if (event.duplicate) R.string.msg_album_duplicate else R.string.msg_album_invalid
-            snackbarHostState.showSnackbar(context.getString(messageRes))
+            snackbarHostState.showSnackbar(context.getString(R.string.msg_album_name_invalid_or_taken))
             onConsume()
         }
         null -> Unit

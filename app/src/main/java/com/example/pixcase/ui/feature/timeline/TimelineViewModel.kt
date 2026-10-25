@@ -407,10 +407,13 @@ class TimelineViewModel @Inject constructor(
         }
     }
 
-    /** 对话框内新建相册;成功后重发 OpenAlbumPicker(内容原地刷新)。 */
+    /** 对话框内新建相册;名字非法/重名由仓库层拦截并提示,仍重开选择器让用户改名重试。 */
     fun createAlbumInDialog(rawName: String) {
         viewModelScope.launch {
-            albumsRepository.createAlbum(rawName, System.currentTimeMillis())
+            val newId = albumsRepository.createAlbum(rawName, System.currentTimeMillis())
+            if (newId == null) {
+                _events.send(TimelineEvent.Message(R.string.msg_album_name_invalid_or_taken))
+            }
             _events.send(TimelineEvent.OpenAlbumPicker(albumsRepository.observeUserAlbums().first()))
         }
     }

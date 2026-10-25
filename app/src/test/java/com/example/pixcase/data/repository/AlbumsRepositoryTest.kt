@@ -53,6 +53,7 @@ class AlbumsRepositoryTest {
     fun `renameAlbum keeps entity identity and refreshes updatedAt`() = runTest {
         val album = AlbumEntity(id = 7L, name = "旧名", coverMediaId = null, createdAt = 1L, updatedAt = 1L)
         coEvery { albumDao.findById(7L) } returns album
+        coEvery { albumDao.findByNameExcluding("新名", 7L) } returns null
 
         val renamed = repository.renameAlbum(7L, "新名", 200L)
 

@@ -41,20 +41,31 @@ class AlbumsRepository @Inject constructor(
 
     suspend fun latestPhotoOf(albumId: Long): Long? = albumPhotoDao.latestMediaIdInAlbum(albumId)
 
-    /** 创建相册,返回新 id;名字非法返回 null。 */
+    /**
+     * 创建相册,返回新 id;名字非法(空白 / 超长)或与现有相册重名时返回 null。
+     * 查重在仓库层统一收敛(2026-10-25 修复:此前仅快速整理选择器自查,主入口可建出重名);
+     * 调用方拿 null 统一提示「名称无效或已存在」,不区分两种原因。
+     */
     suspend fun createAlbum(rawName: String, now: Long): Long? {
-        val name = normalizeAlbumName(rawName) ?: return null
-        return albumDao.insert(AlbumEntity(name = name, coverMediaId = null, createdAt = now, updatedAt = now))
+        val name = normalizeAlbumName(rawName)
+        val nameFree = name != null && !albumDao.existsName(name)
+        return if (!nameFree) {
+            null
+        } else {
+            albumDao.insert(AlbumEntity(name = name, coverMediaId = null, createdAt = now, updatedAt = now))
+        }
     }
 
-    /** 重命名;名字非法或相册不存在返回 false。 */
-    suspend fun renameAlbum(albumId: Long, rawName: String, now: Long): Boolean {
-        val updated = normalizeAlbumName(rawName)
-            ?.let { name -> albumDao.findById(albumId)?.copy(name = name, updatedAt = now) }
-            ?: return false
-        albumDao.update(updated)
-        return true
-    }
+    /** 重命名;名字非法、重名(与其他相册)或相册不存在返回 false。 */
+    suspend fun renameAlbum(albumId: Long, rawName: String, now: Long): Boolean =
+        normalizeAlbumName(rawName)?.let { name ->
+            albumDao.findById(albumId)
+                ?.takeIf { albumDao.findByNameExcluding(name, albumId) == null }
+                ?.let { album ->
+                    albumDao.update(album.copy(name = name, updatedAt = now))
+                    true
+                }
+        } ?: false
 
     /** 删除相册与其全部照片关联。 */
     suspend fun deleteAlbum(albumId: Long) {

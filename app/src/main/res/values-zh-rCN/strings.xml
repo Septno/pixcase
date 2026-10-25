@@ -100,8 +100,6 @@
     <string name="quicksort_target_picker_save">保存</string>
     <string name="quicksort_target_picker_selected">已选 %1$d / %2$d</string>
     <string name="quicksort_targets_empty_warning">仅保留 / 删除可用</string>
-    <string name="msg_album_duplicate">相册已存在</string>
-    <string name="msg_album_invalid">相册名不能为空或过长</string>
     <string name="quicksort_undo">撤销</string>
     <string name="quicksort_msg_unbound">已移出相册</string>
     <string name="quicksort_msg_deleted_trash">已删除,可在系统相册「最近删除」中恢复</string>
@@ -147,6 +145,7 @@
     <string name="search_history_title">最近搜索</string>
     <string name="search_suggestion_tag">标签:%1$s</string>
     <string name="search_suggestion_album">相册:%1$s</string>
+    <string name="msg_album_name_invalid_or_taken">相册名无效或已存在</string>
     <string name="delete_confirm_title">Delete photos?</string>
     <string name="delete_confirm_ok">删除</string>
     <plurals name="selection_count">

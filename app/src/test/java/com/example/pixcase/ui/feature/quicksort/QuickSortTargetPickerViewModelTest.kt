@@ -90,27 +90,17 @@ class QuickSortTargetPickerViewModelTest {
     }
 
     @Test
-    fun `createAlbum with invalid name emits event and creates nothing`() = runTest(testDispatcher) {
-        val vm = viewModel()
-        advanceUntilIdle()
-
-        vm.createAlbum("   ")
-        advanceUntilIdle()
-
-        coVerify(exactly = 0) { albumsRepository.createAlbum(any(), any()) }
-        assertEquals(TargetPickerEvent.InvalidName(duplicate = false), vm.events.value)
-    }
-
-    @Test
-    fun `createAlbum with duplicate name emits duplicate event`() = runTest(testDispatcher) {
+    fun `createAlbum with rejected name emits event and creates nothing`() = runTest(testDispatcher) {
+        // 查重已下沉仓库层:非法 / 重名都表现为 createAlbum 返回 null
+        coEvery { albumsRepository.createAlbum("TargetA", any()) } returns null
         val vm = viewModel()
         advanceUntilIdle()
 
         vm.createAlbum("TargetA")
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { albumsRepository.createAlbum(any(), any()) }
-        assertEquals(TargetPickerEvent.InvalidName(duplicate = true), vm.events.value)
+        coVerify(exactly = 1) { albumsRepository.createAlbum("TargetA", any()) }
+        assertEquals(TargetPickerEvent.InvalidName, vm.events.value)
     }
 
     @Test

@@ -100,7 +100,6 @@
     <string name="quicksort_target_picker_save">Save</string>
     <string name="quicksort_target_picker_selected">%1$d of %2$d selected</string>
     <string name="quicksort_targets_empty_warning">No target albums — only keep and delete will be available</string>
-    <string name="msg_album_duplicate">Album already exists</string>
     <string name="msg_album_invalid">Album name can\'t be empty or too long</string>
     <string name="quicksort_undo">Undo</string>
     <string name="quicksort_msg_unbound">Removed from album</string>
@@ -147,6 +146,7 @@
     <string name="search_history_title">Recent searches</string>
     <string name="search_suggestion_tag">Tag: %1$s</string>
     <string name="search_suggestion_album">Album: %1$s</string>
+    <string name="msg_album_name_invalid_or_taken">Name is invalid or already exists</string>
     <string name="delete_confirm_title">Delete photos?</string>
     <string name="delete_confirm_ok">Delete</string>
     <plurals name="selection_count">
