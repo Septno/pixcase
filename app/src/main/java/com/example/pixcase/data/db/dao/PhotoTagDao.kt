@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.pixcase.data.db.entity.PhotoTagCrossRef
 import com.example.pixcase.data.db.entity.PhotoTagRow
+import com.example.pixcase.data.db.entity.TagUsageRow
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -45,4 +46,8 @@ interface PhotoTagDao {
     /** 一批标签命中的全部照片(搜索:按标签名命中后反查成员)。 */
     @Query("SELECT DISTINCT mediaId FROM photo_tag WHERE tagId IN (:tagIds)")
     suspend fun mediaIdsForTags(tagIds: Collection<Long>): List<Long>
+
+    /** 标签使用量聚合(搜索建议按高频排序)。 */
+    @Query("SELECT tagId, COUNT(mediaId) AS usageCount FROM photo_tag GROUP BY tagId")
+    suspend fun tagUsageCounts(): List<TagUsageRow>
 }

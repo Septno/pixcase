@@ -2,12 +2,14 @@ package com.example.pixcase.ui.feature.search
 
 import android.net.Uri
 import app.cash.turbine.test
+import com.example.pixcase.data.db.dao.TagDao
 import com.example.pixcase.data.model.MediaPhoto
 import com.example.pixcase.data.repository.PhotoRepository
 import com.example.pixcase.data.repository.SearchHitType
 import com.example.pixcase.data.repository.SearchRepository
 import com.example.pixcase.data.repository.SearchedPhoto
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -31,12 +33,19 @@ import org.junit.Test
 class SearchViewModelTest {
     private val searchRepository = mockk<SearchRepository>()
     private val photoRepository = mockk<PhotoRepository>()
+    private val tagDao = mockk<TagDao>()
     private val testDispatcher = StandardTestDispatcher()
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         coEvery { searchRepository.search(any()) } returns emptyList()
+        coEvery { searchRepository.recordQuery(any(), any()) } returns Unit
+        coEvery { searchRepository.filterContextFor(any()) } returns
+            com.example.pixcase.data.repository.FilterContext(emptySet(), emptySet(), emptyMap())
+        coEvery { searchRepository.suggestions(any()) } returns emptyList()
+        every { searchRepository.observeHistory() } returns kotlinx.coroutines.flow.flowOf(emptyList())
+        every { tagDao.observeAll() } returns kotlinx.coroutines.flow.flowOf(emptyList())
     }
 
     @After
@@ -57,7 +66,7 @@ class SearchViewModelTest {
         coEvery { searchRepository.search("ab") } returns listOf(
             SearchedPhoto(photo(1L), setOf(SearchHitType.FILENAME))
         )
-        val vm = SearchViewModel(searchRepository, photoRepository)
+        val vm = SearchViewModel(searchRepository, photoRepository, tagDao)
 
         vm.results.test {
             assertEquals(emptyList<SearchedPhoto>(), awaitItem())
@@ -75,7 +84,7 @@ class SearchViewModelTest {
 
     @Test
     fun `changing query clears selection`() = runTest(testDispatcher) {
-        val vm = SearchViewModel(searchRepository, photoRepository)
+        val vm = SearchViewModel(searchRepository, photoRepository, tagDao)
         vm.toggleSelection(1L)
         assertEquals(setOf(1L), vm.selectedIds.value)
 
@@ -88,7 +97,7 @@ class SearchViewModelTest {
     fun `shareSelection emits share event with photo uris`() = runTest(testDispatcher) {
         val photo = photo(9L)
         coEvery { photoRepository.photosByIds(setOf(9L)) } returns listOf(photo)
-        val vm = SearchViewModel(searchRepository, photoRepository)
+        val vm = SearchViewModel(searchRepository, photoRepository, tagDao)
         vm.toggleSelection(9L)
 
         vm.events.test {
@@ -101,7 +110,7 @@ class SearchViewModelTest {
 
     @Test
     fun `shareSelection with empty selection is a no-op`() = runTest(testDispatcher) {
-        val vm = SearchViewModel(searchRepository, photoRepository)
+        val vm = SearchViewModel(searchRepository, photoRepository, tagDao)
 
         vm.shareSelection()
         advanceUntilIdle()

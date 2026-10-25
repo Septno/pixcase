@@ -17,6 +17,7 @@ import com.example.pixcase.data.db.dao.PhotoTagDao
 import com.example.pixcase.data.db.dao.QuickSortDecisionDao
 import com.example.pixcase.data.db.dao.QuickSortSessionDao
 import com.example.pixcase.data.db.dao.QuickSortSessionTargetDao
+import com.example.pixcase.data.db.dao.SearchHistoryDao
 import com.example.pixcase.data.db.dao.TagDao
 import dagger.Module
 import dagger.Provides
@@ -78,6 +79,9 @@ object AppModule {
 
     @Provides
     fun providePhotoTagDao(db: AppDatabase): PhotoTagDao = db.photoTagDao()
+
+    @Provides
+    fun provideSearchHistoryDao(db: AppDatabase): SearchHistoryDao = db.searchHistoryDao()
 
     @Provides
     fun provideQuickSortSessionDao(db: AppDatabase): QuickSortSessionDao = db.quickSortSessionDao()

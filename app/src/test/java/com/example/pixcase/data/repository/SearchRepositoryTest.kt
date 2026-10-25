@@ -2,7 +2,9 @@ package com.example.pixcase.data.repository
 
 import android.net.Uri
 import com.example.pixcase.data.db.dao.AlbumPhotoDao
+import com.example.pixcase.data.db.dao.HiddenDao
 import com.example.pixcase.data.db.dao.PhotoTagDao
+import com.example.pixcase.data.db.dao.SearchHistoryDao
 import com.example.pixcase.data.db.dao.TagDao
 import com.example.pixcase.data.db.entity.AlbumEntity
 import com.example.pixcase.data.db.entity.TagEntity
@@ -28,6 +30,8 @@ class SearchRepositoryTest {
     private val albumPhotoDao = mockk<AlbumPhotoDao>()
     private val photoTagDao = mockk<PhotoTagDao>()
     private val tagDao = mockk<TagDao>()
+    private val searchHistoryDao = mockk<SearchHistoryDao>()
+    private val hiddenDao = mockk<HiddenDao>()
     private val photoRepository = mockk<PhotoRepository>()
     private val repository = SearchRepository(
         dataSource = dataSource,
@@ -35,7 +39,9 @@ class SearchRepositoryTest {
         albumPhotoDao = albumPhotoDao,
         photoTagDao = photoTagDao,
         tagDao = tagDao,
-        photoRepository = photoRepository
+        photoRepository = photoRepository,
+        searchHistoryDao = searchHistoryDao,
+        hiddenDao = hiddenDao
     )
 
     @Before
@@ -46,6 +52,12 @@ class SearchRepositoryTest {
         coEvery { albumPhotoDao.mediaIdsInAlbums(any()) } returns emptyList()
         coEvery { photoTagDao.mediaIdsForTags(any()) } returns emptyList()
         coEvery { photoRepository.photosByIds(any()) } returns emptyList()
+        coEvery { hiddenDao.allMediaIds() } returns emptyList()
+        coEvery { photoTagDao.tagUsageCounts() } returns emptyList()
+        coEvery { photoTagDao.rowsForMedia(any()) } returns emptyList()
+        coEvery { searchHistoryDao.insert(any()) } returns Unit
+        coEvery { searchHistoryDao.trimTo(any()) } returns Unit
+        every { searchHistoryDao.observeRecent() } returns flowOf(emptyList())
     }
 
     private fun photo(id: Long, name: String = "img_$id.jpg", addedSec: Long = id): MediaPhoto = MediaPhoto(

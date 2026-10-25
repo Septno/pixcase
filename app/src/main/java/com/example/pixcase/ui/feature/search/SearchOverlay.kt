@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,12 +19,17 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,8 +58,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.example.pixcase.R
+import com.example.pixcase.data.db.entity.SearchHistoryEntity
 import com.example.pixcase.data.model.MediaPhoto
 import com.example.pixcase.data.repository.SearchHitType
+import com.example.pixcase.data.repository.SearchSuggestion
 import com.example.pixcase.data.repository.SearchedPhoto
 import com.example.pixcase.ui.feature.timeline.launchPhotoShare
 
@@ -123,20 +131,16 @@ fun SearchOverlay(onDismiss: () -> Unit, viewModel: SearchViewModel = hiltViewMo
     val query by viewModel.query.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
-    var filter by remember { mutableStateOf<SearchHitType?>(null) }
+    val filters by viewModel.filters.collectAsStateWithLifecycle()
+    val tags by viewModel.tags.collectAsStateWithLifecycle()
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+    val history by viewModel.history.collectAsStateWithLifecycle()
+    var hitTypeFilter by remember { mutableStateOf<SearchHitType?>(null) }
+    var showFilterSheet by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     BackHandler(onBack = onDismiss)
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect { event ->
-            when (event) {
-                is SearchEvent.SharePhotos ->
-                    launchPhotoShare(context, event.uris) { messageRes ->
-                        snackbarHostState.showSnackbar(context.getString(messageRes))
-                    }
-            }
-        }
-    }
+    SearchEventsEffect(viewModel, snackbarHostState)
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -144,31 +148,53 @@ fun SearchOverlay(onDismiss: () -> Unit, viewModel: SearchViewModel = hiltViewMo
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.surface)
         ) {
-            SearchInputBar(query = query, onQueryChange = viewModel::onQueryChange, onClose = onDismiss)
-            FilterChipRow(filter = filter, onFilterChange = { filter = it })
-            val filtered = results.filter { filter == null || filter in it.hitTypes }
-            Box(modifier = Modifier.weight(1f)) {
-                when {
-                    query.isBlank() -> IdleHint()
-                    filtered.isEmpty() -> SearchEmptyState()
-                    else -> SearchResultGrid(
-                        results = filtered,
-                        query = query,
-                        selectedIds = selectedIds,
-                        onToggle = viewModel::toggleSelection
-                    )
-                }
+            SearchInputBar(
+                query = query,
+                onQueryChange = viewModel::onQueryChange,
+                onClose = onDismiss,
+                onOpenFilters = { showFilterSheet = true },
+                activeFilterCount = filters.activeCount
+            )
+            FilterChipRow(filter = hitTypeFilter, onFilterChange = { hitTypeFilter = it })
+            if (query.isNotBlank() && suggestions.isNotEmpty()) {
+                SuggestionRow(suggestions = suggestions, onPick = viewModel::onQueryChange)
             }
+            val byHitType = results.filter { hitTypeFilter == null || hitTypeFilter in it.hitTypes }
+            SearchBody(
+                query = query,
+                results = byHitType,
+                history = history,
+                selectedIds = selectedIds,
+                onQueryChange = viewModel::onQueryChange,
+                onDeleteHistory = viewModel::deleteHistory,
+                onToggle = viewModel::toggleSelection,
+                modifier = Modifier.weight(1f)
+            )
             if (selectedIds.isNotEmpty()) {
                 ShareBar(onShare = viewModel::shareSelection)
             }
         }
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
     }
+    if (showFilterSheet) {
+        FilterSheet(
+            filters = filters,
+            tags = tags,
+            onFiltersChange = { transform -> viewModel.updateFilters(transform) },
+            onClear = viewModel::clearFilters,
+            onDismiss = { showFilterSheet = false }
+        )
+    }
 }
 
 @Composable
-private fun SearchInputBar(query: String, onQueryChange: (String) -> Unit, onClose: () -> Unit) {
+private fun SearchInputBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClose: () -> Unit,
+    onOpenFilters: () -> Unit,
+    activeFilterCount: Int
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -199,8 +225,22 @@ private fun SearchInputBar(query: String, onQueryChange: (String) -> Unit, onClo
             },
             modifier = Modifier
                 .weight(1f)
-                .padding(end = 12.dp)
+                .padding(end = 4.dp)
         )
+        BadgedBox(
+            badge = {
+                if (activeFilterCount > 0) {
+                    Badge { Text("$activeFilterCount") }
+                }
+            }
+        ) {
+            IconButton(onClick = onOpenFilters) {
+                Icon(
+                    imageVector = Icons.Outlined.Tune,
+                    contentDescription = stringResource(R.string.search_filter_open)
+                )
+            }
+        }
     }
 }
 
@@ -330,6 +370,109 @@ private fun IdleHint() {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+/** 一次性事件:分享走系统 chooser。 */
+@Composable
+private fun SearchEventsEffect(viewModel: SearchViewModel, snackbarHostState: SnackbarHostState) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is SearchEvent.SharePhotos ->
+                    launchPhotoShare(context, event.uris) { messageRes ->
+                        snackbarHostState.showSnackbar(context.getString(messageRes))
+                    }
+            }
+        }
+    }
+}
+
+/** 覆盖层正文三态:待输入(历史)/ 空结果 / 结果网格。 */
+@Composable
+private fun SearchBody(
+    query: String,
+    results: List<SearchedPhoto>,
+    history: List<SearchHistoryEntity>,
+    selectedIds: Set<Long>,
+    onQueryChange: (String) -> Unit,
+    onDeleteHistory: (String) -> Unit,
+    onToggle: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier) {
+        when {
+            query.isBlank() -> HistoryArea(history = history, onPick = onQueryChange, onDelete = onDeleteHistory)
+            results.isEmpty() -> SearchEmptyState()
+            else -> SearchResultGrid(results = results, query = query, selectedIds = selectedIds, onToggle = onToggle)
+        }
+    }
+}
+
+/** 输入态下的建议行:命中的标签 / 相册名,点选即以此为词。 */
+@Composable
+private fun SuggestionRow(suggestions: List<SearchSuggestion>, onPick: (String) -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        suggestions.forEach { suggestion ->
+            AssistChip(
+                onClick = { onPick(suggestion.text) },
+                label = {
+                    Text(
+                        text = stringResource(
+                            if (suggestion.isTag) R.string.search_suggestion_tag else R.string.search_suggestion_album,
+                            suggestion.text
+                        )
+                    )
+                }
+            )
+        }
+    }
+}
+
+/** 待输入态正文:有历史显示最近搜索(点选回填、单条删除),无历史给输入提示。 */
+@Composable
+private fun HistoryArea(history: List<SearchHistoryEntity>, onPick: (String) -> Unit, onDelete: (String) -> Unit) {
+    if (history.isEmpty()) {
+        IdleHint()
+        return
+    }
+    Column(modifier = Modifier.fillMaxSize()) {
+        Text(
+            text = stringResource(R.string.search_history_title),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(history.size, key = { history[it].id }) { index ->
+                val entry = history[index]
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(entry.query) }
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = entry.query,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { onDelete(entry.query) }) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.action_delete)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

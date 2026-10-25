@@ -144,7 +144,8 @@ class MediaStoreDataSource @Inject constructor(
         val placeholders = mediaIds.joinToString(",") { "?" }
         val cursor = contentResolver.query(
             imagesContentUri,
-            MediaStoreProjection.IMAGE_COLUMNS,
+            // 详情列:搜索结果的大小 / 尺寸筛选需要 SIZE / WIDTH / HEIGHT(与文件名命中同列集)
+            MediaStoreProjection.PHOTO_DETAIL_COLUMNS,
             /* selection = */
             "${MediaStore.Images.Media._ID} IN ($placeholders)",
             /* selectionArgs = */
@@ -156,7 +157,7 @@ class MediaStoreDataSource @Inject constructor(
         cursor.use { c ->
             buildList {
                 while (c.moveToNext()) {
-                    c.toMediaPhotoOrNull(imagesContentUri)?.let(::add)
+                    c.toMediaPhotoWithDetailsOrNull(imagesContentUri)?.let(::add)
                 }
             }
         }
