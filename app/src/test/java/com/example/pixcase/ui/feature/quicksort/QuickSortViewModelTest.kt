@@ -1,8 +1,10 @@
 package com.example.pixcase.ui.feature.quicksort
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import com.example.pixcase.data.db.entity.AlbumEntity
 import com.example.pixcase.data.db.entity.QuickSortSessionEntity
+import com.example.pixcase.data.model.MediaPhoto
 import com.example.pixcase.data.repository.AlbumsRepository
 import com.example.pixcase.data.repository.PhotoRepository
 import com.example.pixcase.data.repository.QuickSortRepository
@@ -44,6 +46,8 @@ class QuickSortViewModelTest {
         // 队列重载的默认 stub(需要特定值的用例在各自测试里覆盖)
         coEvery { quickSortRepository.pendingMediaIds(any()) } returns emptyList()
         coEvery { photoRepository.photosByIds(any()) } returns emptyList()
+        coEvery { quickSortRepository.recordKeep(any(), any(), any()) } returns Unit
+        coEvery { quickSortRepository.recordSkip(any(), any(), any()) } returns Unit
         every { albumsRepository.observeUserAlbums() } returns flowOf(
             listOf(
                 album(id = 1L, name = "Source"),
@@ -181,4 +185,93 @@ class QuickSortViewModelTest {
         assertEquals(listOf(2L, 3L), candidates.map { it.id })
         assertEquals("Source", name)
     }
+
+    @Test
+    fun `active entry loads pending queue in album order`() = runTest(testDispatcher) {
+        coEvery { quickSortRepository.session(1L) } returns session(completed = false)
+        coEvery { quickSortRepository.pendingMediaIds(1L) } returns listOf(9L, 5L)
+        coEvery { photoRepository.photosByIds(listOf(9L, 5L)) } returns listOf(photo(5L), photo(9L))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.continueSession()
+        advanceUntilIdle()
+
+        // 队列保持相册顺序(9 → 5),补查结果按 _ID 升序须重排
+        assertEquals(listOf(9L, 5L), vm.pendingPhotos.value.map { it.id })
+    }
+
+    @Test
+    fun `keepCurrent records decision and advances queue`() = runTest(testDispatcher) {
+        coEvery { quickSortRepository.session(1L) } returns session(completed = false)
+        coEvery { quickSortRepository.pendingMediaIds(1L) } returns listOf(9L, 5L)
+        coEvery { photoRepository.photosByIds(listOf(9L, 5L)) } returns listOf(photo(9L), photo(5L))
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.continueSession()
+        advanceUntilIdle()
+
+        vm.keepCurrent()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { quickSortRepository.recordKeep(1L, 9L, any()) }
+        assertEquals(listOf(5L), vm.pendingPhotos.value.map { it.id })
+    }
+
+    @Test
+    fun `skipCurrent records skip and advances queue`() = runTest(testDispatcher) {
+        coEvery { quickSortRepository.session(1L) } returns session(completed = false)
+        coEvery { quickSortRepository.pendingMediaIds(1L) } returns listOf(9L, 5L)
+        coEvery { photoRepository.photosByIds(listOf(9L, 5L)) } returns listOf(photo(9L), photo(5L))
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.continueSession()
+        advanceUntilIdle()
+
+        vm.skipCurrent()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { quickSortRepository.recordSkip(1L, 9L, any()) }
+        assertEquals(listOf(5L), vm.pendingPhotos.value.map { it.id })
+    }
+
+    @Test
+    fun `decide on empty queue is a no-op`() = runTest(testDispatcher) {
+        coEvery { quickSortRepository.session(1L) } returns session(completed = false)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.keepCurrent()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { quickSortRepository.recordKeep(any(), any(), any()) }
+    }
+
+    @Test
+    fun `restart session resets progress and reloads queue`() = runTest(testDispatcher) {
+        coEvery { quickSortRepository.session(1L) } returns session(completed = false)
+        coEvery { quickSortRepository.pendingMediaIds(1L) } returns listOf(7L)
+        coEvery { photoRepository.photosByIds(listOf(7L)) } returns listOf(photo(7L))
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.continueSession()
+        advanceUntilIdle()
+        vm.keepCurrent()
+        advanceUntilIdle()
+        assertEquals(emptyList<Long>(), vm.pendingPhotos.value.map { it.id })
+
+        vm.restartSession()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { quickSortRepository.resetSession(1L, any()) }
+        assertEquals(listOf(7L), vm.pendingPhotos.value.map { it.id })
+    }
+
+    private fun photo(id: Long) = MediaPhoto(
+        id = id,
+        uri = mockk<Uri>(relaxed = true),
+        displayName = "img_$id.jpg",
+        mimeType = "image/jpeg",
+        dateAddedSec = 0L
+    )
 }
