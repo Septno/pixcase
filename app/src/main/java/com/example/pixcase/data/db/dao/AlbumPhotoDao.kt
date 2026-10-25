@@ -51,4 +51,8 @@ interface AlbumPhotoDao {
     /** 照片所属相册数(快速整理上划删除的双重语义判定:仅 1 个 → 真删除,否则仅解绑)。 */
     @Query("SELECT COUNT(DISTINCT albumId) FROM album_photo WHERE mediaId = :mediaId")
     suspend fun countAlbumsOf(mediaId: Long): Int
+
+    /** 一批相册的全部成员照片(搜索:按相册名命中后反查成员)。 */
+    @Query("SELECT DISTINCT mediaId FROM album_photo WHERE albumId IN (:albumIds)")
+    suspend fun mediaIdsInAlbums(albumIds: Collection<Long>): List<Long>
 }

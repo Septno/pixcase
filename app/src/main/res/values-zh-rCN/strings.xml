@@ -107,6 +107,14 @@
     <string name="quicksort_msg_deleted_trash">已删除,可在系统相册「最近删除」中恢复</string>
     <string name="quicksort_msg_deleted_permanent">已永久删除</string>
     <string name="quicksort_msg_trash_cancelled">已取消删除</string>
+    <string name="search_hint">搜索照片 / 相册 / 标签</string>
+    <string name="search_idle_hint">输入关键词开始搜索</string>
+    <string name="search_empty_title">没找到匹配的图像</string>
+    <string name="search_empty_hint">换个关键词,或先在时间线给照片打上标签。</string>
+    <string name="search_filter_all">全部</string>
+    <string name="search_filter_filename">文件名</string>
+    <string name="search_filter_album">相册</string>
+    <string name="search_filter_tag">标签</string>
     <string name="delete_confirm_title">删除这些照片?</string>
     <string name="delete_confirm_ok">删除</string>
     <plurals name="selection_count">

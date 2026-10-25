@@ -107,6 +107,14 @@
     <string name="quicksort_msg_deleted_trash">Deleted. Restore it from Recently deleted in the system gallery.</string>
     <string name="quicksort_msg_deleted_permanent">Permanently deleted</string>
     <string name="quicksort_msg_trash_cancelled">Delete cancelled</string>
+    <string name="search_hint">Search photos, albums, tags</string>
+    <string name="search_idle_hint">Type a keyword to start searching</string>
+    <string name="search_empty_title">No matching photos</string>
+    <string name="search_empty_hint">Try another keyword, or tag photos on the timeline first.</string>
+    <string name="search_filter_all">All</string>
+    <string name="search_filter_filename">Filename</string>
+    <string name="search_filter_album">Album</string>
+    <string name="search_filter_tag">Tag</string>
     <string name="delete_confirm_title">Delete photos?</string>
     <string name="delete_confirm_ok">Delete</string>
     <plurals name="selection_count">

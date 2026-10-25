@@ -41,4 +41,8 @@ interface PhotoTagDao {
     /** 全表去重 mediaId(孤儿清扫兜底用)。 */
     @Query("SELECT DISTINCT mediaId FROM photo_tag")
     suspend fun allMediaIds(): List<Long>
+
+    /** 一批标签命中的全部照片(搜索:按标签名命中后反查成员)。 */
+    @Query("SELECT DISTINCT mediaId FROM photo_tag WHERE tagId IN (:tagIds)")
+    suspend fun mediaIdsForTags(tagIds: Collection<Long>): List<Long>
 }

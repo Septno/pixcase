@@ -25,6 +25,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +41,8 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.pixcase.R
 import com.example.pixcase.core.permission.PermissionGate
 import com.example.pixcase.core.permission.appSettingsIntent
+import com.example.pixcase.ui.feature.search.CollapsedSearchBar
+import com.example.pixcase.ui.feature.search.SearchOverlay
 
 /**
  * 时间线路由。
@@ -79,6 +82,8 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
     val columnCount by viewModel.columnCount.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val dialogs = remember { TimelineDialogsState() }
+    // 阶段 4:顶部折叠搜索条 → 全屏搜索覆盖层(输入即搜,关闭回时间线)
+    var showSearch by rememberSaveable { mutableStateOf(false) }
     TimelineEventsEffect(
         viewModel = viewModel,
         snackbarHostState = snackbarHostState,
@@ -90,7 +95,11 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            SelectionTopBarIfActive(selectedIds = selectedIds, onClose = viewModel::clearSelection)
+            TimelineTopArea(
+                selectedIds = selectedIds,
+                onCloseSelection = viewModel::clearSelection,
+                onOpenSearch = { showSearch = true }
+            )
             Box(modifier = Modifier.weight(1f)) {
                 TimelineContent(
                     items = lazyItems,
@@ -117,11 +126,20 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onOpenViewer: (Long) ->
             )
         }
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
+        if (showSearch) {
+            SearchOverlay(onDismiss = { showSearch = false })
+        }
     }
 
+    TimelineDialogsHost(state = dialogs, selectedCount = selectedIds.size, viewModel = viewModel)
+}
+
+/** 时间线的四种多选对话框接线(删除确认 / 重命名 / 打标签 / 加入相册)。 */
+@Composable
+private fun TimelineDialogsHost(state: TimelineDialogsState, selectedCount: Int, viewModel: TimelineViewModel) {
     TimelineDialogs(
-        state = dialogs,
-        deleteCount = selectedIds.size,
+        state = state,
+        deleteCount = selectedCount,
         onDeleteConfirmed = viewModel::deleteSelectionConfirmed,
         onRenameConfirmed = viewModel::renameSelection,
         onTagConfirmed = viewModel::applyTags,
@@ -143,11 +161,13 @@ private class TimelineDialogsState {
     var albumPickerPayload by mutableStateOf<TimelineEvent.OpenAlbumPicker?>(null)
 }
 
-/** 多选激活时显示顶栏(退出按钮 + 已选计数),否则不占任何空间。 */
+/** 顶部区域:非多选态显示搜索条(阶段 4),多选态让位给已选计数顶栏。 */
 @Composable
-private fun SelectionTopBarIfActive(selectedIds: Set<Long>, onClose: () -> Unit) {
-    if (selectedIds.isNotEmpty()) {
-        SelectionTopBar(count = selectedIds.size, onClose = onClose)
+private fun TimelineTopArea(selectedIds: Set<Long>, onCloseSelection: () -> Unit, onOpenSearch: () -> Unit) {
+    if (selectedIds.isEmpty()) {
+        CollapsedSearchBar(onClick = onOpenSearch)
+    } else {
+        SelectionTopBar(count = selectedIds.size, onClose = onCloseSelection)
     }
 }
 
@@ -339,7 +359,7 @@ private fun TimelineEventsEffect(
 }
 
 /** 多图分享:系统 chooser;设备上没有可接收的应用时提示。 */
-private suspend fun launchPhotoShare(context: Context, uris: List<Uri>, showErrorMessage: suspend (Int) -> Unit) {
+internal suspend fun launchPhotoShare(context: Context, uris: List<Uri>, showErrorMessage: suspend (Int) -> Unit) {
     val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
         type = "image/*"
         putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))

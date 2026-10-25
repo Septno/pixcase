@@ -27,6 +27,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
+/** 文件名搜索的结果上限:不分页的有界集合。 */
+private const val DISPLAY_SEARCH_LIMIT = 200
+
 /**
  * MediaStore 数据源。对外暴露五类入口:
  *
@@ -242,6 +245,33 @@ class MediaStoreDataSource @Inject constructor(
             null
         ) ?: return@withContext emptySet()
         cursor.use { c -> buildSet { while (c.moveToNext()) add(c.getLong(0)) } }
+    }
+
+    /**
+     * 按文件名片段搜索(阶段 4):DISPLAY_NAME LIKE 包含匹配,结果按时间线同款排序基准
+     * 取前 [DISPLAY_SEARCH_LIMIT] 条,不分页(搜索结果天然有界)。片段里的 % / _ 通配符
+     * 剥掉 —— 用户输入按字面量匹配,不承担 SQL 通配语义。
+     */
+    suspend fun queryByDisplayNameFragment(fragment: String): List<MediaPhoto> = withContext(ioDispatcher) {
+        val literal = fragment.filterNot { it == '%' || it == '_' }
+        if (literal.isEmpty()) return@withContext emptyList()
+        val cursor = contentResolver.query(
+            imagesContentUri,
+            MediaStoreProjection.PHOTO_DETAIL_COLUMNS,
+            /* selection = */
+            "${MediaStore.Images.Media.DISPLAY_NAME} LIKE ?",
+            /* selectionArgs = */
+            arrayOf("%$literal%"),
+            /* sortOrder = */
+            null
+        ) ?: return@withContext emptyList()
+        cursor.use { c ->
+            buildList {
+                while (c.moveToNext() && size < DISPLAY_SEARCH_LIMIT) {
+                    c.toMediaPhotoWithDetailsOrNull(imagesContentUri)?.let(::add)
+                }
+            }
+        }
     }
 
     /**
