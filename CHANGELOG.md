@@ -9,6 +9,8 @@
 
 ### Added
 
+- 阶段 3.5 入口与配置流:相册详情页右上角 ⚡「快速整理」入口(空相册禁用);进入时按「是否有未完成 session」分流 —— 有则弹底部 Sheet 选「继续上次 / 从头开始」(从头只重置进度、不删不移照片),无则直接进目标相册多选配置(排除被整理相册自身,允许 0 目标即仅保留可用);配置确认创建 session 进入整理界面;顶栏 ← 退出自动保存进度。新建 session 清掉旧 decisions,防止重建后已决策残留导致直接完成态;卡片手势界面属下一批任务
+
 - 阶段 3.5 数据层:快速整理的 session 与决策仓库 —— DB 1→2 迁移把 `quick_sort_session.targetAlbumIds`(逗号分隔字符串)拆为带顺序的 `quick_sort_session_target` 独立表(陷阱 5);决策(保留/跳过/移动)与相册关联变更同事务落库,完成态自动判定;「继续上次」按相册顺序过滤已决策,「从头开始」只清决策不删照片关联;同步补 MigrationTestHelper 基建(Robolectric + room-testing,schema 挂 debug 变体 assets)
 
 - 数据一致性兜底:孤儿清扫 Worker(每日周期 + 进程启动补一次)—— 以 MediaStore 全量 id 为真源做差,统一清扫收藏/隐藏/相册关联/标签关联中指向已删照片的孤儿行(库外删除的兜底,幂等,批量分块避开 SQLite 变量上限);收藏反向同步(API 30+)—— 系统相册取消收藏后 Room 覆盖层自动对齐,与 Paging 失效共用 ContentObserver 触发,30 秒宽限期内新写入的收藏不参与对齐以避开 createFavoriteRequest 生效延迟的时序竞态

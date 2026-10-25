@@ -77,6 +77,15 @@
     <string name="msg_removed_from_album">Removed %1$d from album</string>
     <string name="msg_cover_set">Cover updated</string>
     <string name="albums_detail_empty">No photos in this album</string>
+    <string name="quicksort_entry">Quick sort</string>
+    <string name="quicksort_title_with_album">%1$s · Quick sort</string>
+    <string name="quicksort_pending_summary">%1$d photos to sort</string>
+    <string name="quicksort_resume_title">Unfinished sorting session</string>
+    <string name="quicksort_resume">Continue</string>
+    <string name="quicksort_restart">Start over</string>
+    <string name="quicksort_restart_hint">Starting over resets progress only. No photos are deleted or removed.</string>
+    <string name="quicksort_setup_title">Choose target albums</string>
+    <string name="quicksort_setup_none">No other albums yet. You can still sort with keep only.</string>
     <string name="delete_confirm_title">Delete photos?</string>
     <string name="delete_confirm_ok">Delete</string>
     <plurals name="selection_count">

@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
@@ -64,6 +66,7 @@ private const val SELECTED_SCRIM_ALPHA = 0.3f
 fun AlbumDetailScreen(
     onBack: () -> Unit,
     onPhotoClick: (Long) -> Unit,
+    onQuickSort: (() -> Unit)? = null,
     viewModel: AlbumDetailViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -86,7 +89,21 @@ fun AlbumDetailScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (selectedIds.isEmpty()) {
-                AlbumDetailTopBar(name = albumName, count = photos.size, onBack = onBack)
+                AlbumDetailTopBar(
+                    name = albumName,
+                    count = photos.size,
+                    onBack = onBack,
+                    // 快速整理入口:空相册没有可整理的照片,禁用防误入。
+                    trailingAction = onQuickSort?.let { open ->
+                        {
+                            QuickSortEntryButton(
+                                enabled = photos.isNotEmpty(),
+                                onClick = open,
+                                modifier = Modifier.align(Alignment.TopEnd)
+                            )
+                        }
+                    }
+                )
             } else {
                 SelectionTopBar(count = selectedIds.size, onClose = viewModel::clearSelection)
             }
@@ -216,9 +233,14 @@ private fun AlbumSelectionActionBar(onRemove: () -> Unit, onSetCover: () -> Unit
     }
 }
 
-/** 详情页顶栏(返回 + 名称 + 条数),自定义相册与智能相册详情共用。 */
+/** 详情页顶栏(返回 + 名称 + 条数 + 可选尾部动作),自定义相册与智能相册详情共用。 */
 @Composable
-internal fun AlbumDetailTopBar(name: String, count: Int, onBack: () -> Unit) {
+internal fun AlbumDetailTopBar(
+    name: String,
+    count: Int,
+    onBack: () -> Unit,
+    trailingAction: (@Composable BoxScope.() -> Unit)? = null
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -241,8 +263,27 @@ internal fun AlbumDetailTopBar(name: String, count: Int, onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        trailingAction?.invoke(this)
     }
 }
+
+/** ⚡ 快速整理入口按钮(计划 § 3.5.1:相册详情页右上角)。 */
+@Composable
+private fun QuickSortEntryButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+        Icon(
+            imageVector = Icons.Outlined.Bolt,
+            contentDescription = stringResource(R.string.quicksort_entry),
+            tint = if (enabled) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = DISABLED_ICON_ALPHA)
+            }
+        )
+    }
+}
+
+private const val DISABLED_ICON_ALPHA = 0.38f
 
 /** 相册内照片计数:走 plurals 资源。 */
 @Composable

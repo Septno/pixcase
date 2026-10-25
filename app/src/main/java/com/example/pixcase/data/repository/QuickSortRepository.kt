@@ -45,10 +45,13 @@ class QuickSortRepository @Inject constructor(
 
     /**
      * 创建 session:目标相册按选择顺序落 position;totalCount 以创建时的相册条数为准。
+     * 新 session 总是干净开局 —— 旧 session(REPLACE 覆盖)遗留的 decisions 一并清掉,
+     * 否则已决策照片仍在,processedCount 起步即等于 totalCount、直接完成态。
      * 若已有 session,由调用方先决定「继续 / 从头」再走 [updateTargets] / [resetSession]。
      */
     suspend fun createSession(albumId: Long, targetAlbumIds: List<Long>, now: Long) {
         appDatabase.withTransaction {
+            decisionDao.clearSession(albumId)
             targetDao.deleteForSession(albumId)
             targetDao.insertAll(
                 targetAlbumIds.mapIndexed { position, targetAlbumId ->

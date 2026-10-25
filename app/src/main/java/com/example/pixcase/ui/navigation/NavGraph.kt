@@ -36,6 +36,7 @@ import com.example.pixcase.ui.common.PlaceholderScreen
 import com.example.pixcase.ui.feature.albums.AlbumDetailScreen
 import com.example.pixcase.ui.feature.albums.AlbumsScreen
 import com.example.pixcase.ui.feature.albums.SmartAlbumDetailScreen
+import com.example.pixcase.ui.feature.quicksort.QuickSortRoute
 import com.example.pixcase.ui.feature.timeline.TimelineRoute
 import com.example.pixcase.ui.feature.viewer.ViewerRoute
 
@@ -55,6 +56,12 @@ private object Routes {
     const val SMART_DETAIL = "smart/{$SMART_DETAIL_ARG}"
 
     fun smartDetail(kind: String): String = "smart/$kind"
+
+    /** 快速整理;只带相册 id,session 状态由 QuickSortViewModel 自己查。 */
+    const val QUICK_SORT_ARG = "quickSortAlbumId"
+    const val QUICK_SORT = "quicksort/{$QUICK_SORT_ARG}"
+
+    fun quickSort(albumId: Long): String = "quicksort/$albumId"
 
     const val SEARCH = "search"
     const val FAVORITES = "favorites"
@@ -157,10 +164,12 @@ private fun NavGraphBuilder.albumNavEntries(navController: NavHostController) {
         arguments = listOf(
             navArgument(Routes.ALBUM_DETAIL_ARG) { type = NavType.LongType }
         )
-    ) {
+    ) { entry ->
+        val albumId = entry.arguments?.getLong(Routes.ALBUM_DETAIL_ARG) ?: 0L
         AlbumDetailScreen(
             onBack = { navController.popBackStack() },
-            onPhotoClick = { photoId -> navController.navigate(Routes.viewer(photoId)) }
+            onPhotoClick = { photoId -> navController.navigate(Routes.viewer(photoId)) },
+            onQuickSort = { navController.navigate(Routes.quickSort(albumId)) }
         )
     }
     composable(Routes.SMART_DETAIL) {
@@ -168,6 +177,14 @@ private fun NavGraphBuilder.albumNavEntries(navController: NavHostController) {
             onBack = { navController.popBackStack() },
             onPhotoClick = { photoId -> navController.navigate(Routes.viewer(photoId)) }
         )
+    }
+    composable(
+        route = Routes.QUICK_SORT,
+        arguments = listOf(
+            navArgument(Routes.QUICK_SORT_ARG) { type = NavType.LongType }
+        )
+    ) {
+        QuickSortRoute(onBack = { navController.popBackStack() })
     }
 }
 

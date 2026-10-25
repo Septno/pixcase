@@ -77,6 +77,15 @@
     <string name="msg_removed_from_album">已移出 %1$d 张照片</string>
     <string name="msg_cover_set">封面已更新</string>
     <string name="albums_detail_empty">相册还没有照片</string>
+    <string name="quicksort_entry">快速整理</string>
+    <string name="quicksort_title_with_album">%1$s · 快速整理</string>
+    <string name="quicksort_pending_summary">待整理 %1$d 张</string>
+    <string name="quicksort_resume_title">发现未完成的整理</string>
+    <string name="quicksort_resume">继续上次</string>
+    <string name="quicksort_restart">从头开始</string>
+    <string name="quicksort_restart_hint">从头开始只重置整理进度,不会删除或移出照片。</string>
+    <string name="quicksort_setup_title">选择目标相册</string>
+    <string name="quicksort_setup_none">还没有其他相册;仅保留整理也可以开始。</string>
     <string name="delete_confirm_title">删除这些照片?</string>
     <string name="delete_confirm_ok">删除</string>
     <plurals name="selection_count">
